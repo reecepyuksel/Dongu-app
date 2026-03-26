@@ -17,6 +17,11 @@ export enum ShareType {
   TRADE = 'exchange',
 }
 
+export enum ItemPostType {
+  OFFERING = 'OFFERING',
+  REQUESTING = 'REQUESTING',
+}
+
 export class CreateItemDto {
   @ApiProperty({ example: 'Eski Bisiklet', description: 'İlan başlığı' })
   @IsString()
@@ -62,6 +67,14 @@ export class CreateItemDto {
   imageUrl?: string;
 
   @ApiPropertyOptional({
+    example: 'd1f10d39-9b6e-4f12-8e77-66db22afde18',
+    description: 'Topluluk içerisinde paylaşım yapılacaksa topluluk ID',
+  })
+  @IsOptional()
+  @IsString()
+  communityId?: string;
+
+  @ApiPropertyOptional({
     example: '2024-12-31T23:59:59Z',
     description: 'Çekiliş tarihi (ISO 8601) - Manuel seçimde opsiyonel',
   })
@@ -101,4 +114,13 @@ export class CreateItemDto {
   @IsOptional()
   @IsString()
   tradePreferences?: string;
+
+  @ApiPropertyOptional({
+    enum: ItemPostType,
+    example: 'OFFERING',
+    description: 'İlan Tipi (OFFERING - Bende Var, REQUESTING - Var Mı)',
+  })
+  @IsOptional()
+  @IsEnum(ItemPostType)
+  postType?: ItemPostType;
 }

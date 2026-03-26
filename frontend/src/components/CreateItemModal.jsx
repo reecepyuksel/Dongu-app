@@ -7,10 +7,10 @@ import {
   X,
   Upload,
   Loader2,
-  Image as ImageIcon,
   ChevronRight,
   ChevronLeft,
   CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import api from '../api';
 import { useToast } from '../context/ToastContext';
@@ -19,20 +19,32 @@ import citiesData from '../data/cities.json';
 import SearchableSelect from './SearchableSelect';
 
 // Zod şeması
-const createItemSchema = z.object({
-  title: z.string().min(5, 'Başlık en az 5 karakter olmalı'),
-  description: z.string().min(20, 'Açıklama en az 20 karakter olmalı'),
-  city: z.string().min(1, 'Lütfen şehir seçiniz'),
-  district: z.string().min(1, 'Lütfen ilçe seçiniz'),
-  neighborhood: z.string().optional(),
-  shareType: z.enum(['donation', 'exchange']),
-  tradePreferences: z.string().optional(),
-  selectionType: z.enum(['lottery', 'manual']),
-  deliveryMethods: z.enum(['pickup', 'shipping', 'mutual_agreement'], {
-    required_error: 'Lütfen bir teslimat yöntemi seçiniz',
-  }),
-  drawDate: z.string().optional(), // Manuel seçimde opsiyonel
-});
+const createItemSchema = z
+  .object({
+    title: z.string().min(5, 'Başlık en az 5 karakter olmalı'),
+    description: z.string().min(20, 'Açıklama en az 20 karakter olmalı'),
+    city: z.string().min(1, 'Lütfen şehir seçiniz'),
+    district: z.string().min(1, 'Lütfen ilçe seçiniz'),
+    neighborhood: z.string().optional(),
+    shareType: z.enum(['donation', 'exchange']),
+    tradePreferences: z.string().optional(),
+    selectionType: z.enum(['lottery', 'manual']),
+    deliveryMethods: z.enum(['pickup', 'shipping', 'mutual_agreement'], {
+      required_error: 'Lütfen bir teslimat yöntemi seçiniz',
+    }),
+    drawDate: z.string().optional(), // Manuel seçimde opsiyonel
+    visibilityScope: z.enum(['PUBLIC', 'COMMUNITY']),
+    communityId: z.string().optional(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.visibilityScope === 'COMMUNITY' && !values.communityId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['communityId'],
+        message: 'Topluluk içinde paylaşmak için bir topluluk seçmelisiniz.',
+      });
+    }
+  });
 
 const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
   const [step, setStep] = useState(1);
@@ -41,9 +53,11 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
   const [coverIndex, setCoverIndex] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [myCommunities, setMyCommunities] = useState([]);
+  const [communitiesLoading, setCommunitiesLoading] = useState(false);
   const fileInputRef = useRef(null);
   const { showToast } = useToast();
-  const { fetchUser } = useAuth(); // ADDED
+  const { fetchUser, isAuthenticated } = useAuth();
 
   // Şehir/İlçe Verisi (JSON'dan Çekiliyor)
   const cities = citiesData.cities;
@@ -61,10 +75,13 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
   } = useForm({
     resolver: zodResolver(createItemSchema),
     defaultValues: {
+      postType: 'OFFERING',
       deliveryMethods: '',
       selectionType: 'manual', // default manual for exchange, can be overwritten by hook
       shareType: 'donation',
       tradePreferences: '',
+      visibilityScope: 'PUBLIC',
+      communityId: '',
     },
   });
 
@@ -72,6 +89,8 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
   const selectedMethod = watch('deliveryMethods');
   const selectionType = watch('selectionType');
   const shareType = watch('shareType');
+  const postType = watch('postType');
+  const visibilityScope = watch('visibilityScope');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -82,6 +101,39 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
       document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated) {
+      setMyCommunities([]);
+      return;
+    }
+
+    let mounted = true;
+
+    const fetchCommunities = async () => {
+      try {
+        setCommunitiesLoading(true);
+        const response = await api.get('/communities/my');
+        if (mounted) {
+          setMyCommunities(Array.isArray(response.data) ? response.data : []);
+        }
+      } catch {
+        if (mounted) {
+          setMyCommunities([]);
+        }
+      } finally {
+        if (mounted) {
+          setCommunitiesLoading(false);
+        }
+      }
+    };
+
+    fetchCommunities();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, isAuthenticated]);
 
   const processFiles = (files) => {
     if (files.length > 0) {
@@ -141,7 +193,7 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
 
   const handleNext = async () => {
     if (step === 1) {
-      if (selectedFiles.length === 0) {
+      if (postType === 'OFFERING' && selectedFiles.length === 0) {
         showToast('Lütfen en az bir görsel yükleyin', 'error');
         return;
       }
@@ -172,7 +224,7 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
   };
 
   const onSubmit = async (data) => {
-    if (selectedFiles.length === 0) return;
+    if (data.postType === 'OFFERING' && selectedFiles.length === 0) return;
 
     try {
       setIsSubmitting(true);
@@ -202,6 +254,10 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
         data.shareType === 'exchange' ? 'manual' : data.selectionType,
       );
       formData.append('shareType', data.shareType);
+      formData.append('postType', data.postType);
+      if (data.visibilityScope === 'COMMUNITY' && data.communityId) {
+        formData.append('communityId', data.communityId);
+      }
       if (data.shareType === 'exchange' && data.tradePreferences) {
         formData.append('tradePreferences', data.tradePreferences);
       }
@@ -285,6 +341,24 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
+                {/* Var mı / Bende var Switch */}
+                <div className="flex bg-slate-100 p-1 rounded-2xl mb-6 relative z-10 w-full shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => setValue('postType', 'OFFERING')}
+                    className={`flex-1 py-3.5 text-sm font-bold rounded-xl transition-all duration-300 ${postType === 'OFFERING' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    🙌 Bende Var!
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setValue('postType', 'REQUESTING')}
+                    className={`flex-1 py-3.5 text-sm font-bold rounded-xl transition-all duration-300 ${postType === 'REQUESTING' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    🤔 Var mı?
+                  </button>
+                </div>
+
                 {/* Type Selection Header */}
                 <div className="space-y-3 mb-6">
                   <label className="block text-base font-bold text-slate-800 text-center mb-2">
@@ -332,11 +406,17 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
 
                 <div>
                   <h3 className="text-lg font-semibold text-slate-800 mb-1">
-                    Eşya Görselleri
+                    Eşya Görselleri{' '}
+                    {postType === 'REQUESTING' && (
+                      <span className="text-sm text-slate-400 font-normal">
+                        (İsteğe Bağlı)
+                      </span>
+                    )}
                   </h3>
                   <p className="text-sm text-slate-500 mb-4">
-                    Eşyayı en iyi anlatan net fotoğraflar yükleyin. İlk fotoğraf
-                    kapak olacaktır.
+                    {postType === 'REQUESTING'
+                      ? 'Aradığınız eşyayı tarif eden örnek bir resim yükleyebilirsiniz.'
+                      : 'Eşyayı en iyi anlatan net fotoğraflar yükleyin. İlk fotoğraf kapak olacaktır.'}
                   </p>
 
                   {/* Sürükle Bırak Alanı */}
@@ -567,6 +647,93 @@ const CreateItemModal = ({ isOpen, onClose, onItemCreated }) => {
                 exit={{ opacity: 0, x: -20 }}
                 className="space-y-6"
               >
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                  <div className="flex items-center gap-2 text-slate-900">
+                    <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    <h3 className="text-sm font-semibold">
+                      Nerede Paylaşılsın?
+                    </h3>
+                  </div>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Genel Döngü tüm kullanıcılara açıktır. Topluluk içi paylaşım
+                    ise sadece üyelerin görebileceği güvenli alanda yayınlanır.
+                  </p>
+
+                  <div className="mt-4 grid gap-3">
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${visibilityScope === 'PUBLIC' ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white'}`}
+                    >
+                      <input
+                        type="radio"
+                        value="PUBLIC"
+                        {...register('visibilityScope')}
+                        onChange={() => {
+                          setValue('visibilityScope', 'PUBLIC');
+                          setValue('communityId', '');
+                        }}
+                        className="mt-1 h-4 w-4 text-slate-900"
+                      />
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">
+                          Genel Döngü (Herkes)
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          Paylaşım tüm vitrinde görünür.
+                        </div>
+                      </div>
+                    </label>
+
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${visibilityScope === 'COMMUNITY' ? 'border-slate-900 bg-white' : 'border-slate-200 bg-white'}`}
+                    >
+                      <input
+                        type="radio"
+                        value="COMMUNITY"
+                        {...register('visibilityScope')}
+                        onChange={() =>
+                          setValue('visibilityScope', 'COMMUNITY')
+                        }
+                        className="mt-1 h-4 w-4 text-slate-900"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-slate-800">
+                          Üye Olduğun Topluluklar
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          İlan sadece seçtiğin topluluk üyelerine görünür.
+                        </div>
+                        <select
+                          {...register('communityId')}
+                          disabled={
+                            visibilityScope !== 'COMMUNITY' ||
+                            communitiesLoading ||
+                            myCommunities.length === 0
+                          }
+                          className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <option value="">
+                            {communitiesLoading
+                              ? 'Topluluklar yükleniyor...'
+                              : myCommunities.length === 0
+                                ? 'Henüz üye olduğun topluluk yok'
+                                : 'Topluluk seçin'}
+                          </option>
+                          {myCommunities.map((community) => (
+                            <option key={community.id} value={community.id}>
+                              {community.name}
+                            </option>
+                          ))}
+                        </select>
+                        {errors.communityId && (
+                          <p className="mt-2 text-xs font-medium text-red-500">
+                            {errors.communityId.message}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 {shareType === 'donation' && (
                   <>
                     <div className="space-y-3">

@@ -23,8 +23,7 @@ export default function NotificationBell() {
     const [socket, setSocket] = useState(null);
 
     // Audio for notification pop
-    // A short, pleasant base64 encoded "pop" sound
-    const popSoundUrl = "data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA//NExJQAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA";
+    const popSoundUrl = "data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA//NExJQAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA";
     const audioRef = useRef(new Audio(popSoundUrl));
 
     // Poll unread count
@@ -78,23 +77,10 @@ export default function NotificationBell() {
 
         const playPopSound = () => {
             try {
-                // To avoid DomException: play() failed because the user didn't interact
                 audioRef.current.currentTime = 0;
                 audioRef.current.play().catch(err => console.log('Audio autoplay prevented by browser', err));
             } catch(e) {}
         };
-
-        socket.on('newMessage', (msg) => {
-            // Sadece alıcı bensem bildirim göster/ses çal
-            // (Mesaj gönderme anında da newMessage local'e düşmeyecek çünkü server-side sender'ı atlar, ancak yine de garanti olsun)
-            const token = localStorage.getItem('token');
-            const myId = token ? JSON.parse(atob(token.split('.')[1]))?.sub : null;
-            if (msg.receiver?.id === myId || msg.receiver === myId) {
-                playPopSound();
-                fetchUnreadCount();
-                if (isOpen) fetchNotifications();
-            }
-        });
 
         socket.on('newNotification', () => {
              playPopSound();
@@ -103,7 +89,6 @@ export default function NotificationBell() {
         });
 
         return () => {
-            socket.off('newMessage');
             socket.off('newNotification');
         };
     }, [socket, isOpen]);
@@ -178,16 +163,21 @@ export default function NotificationBell() {
             {/* Bell Button */}
             <button
                 onClick={handleToggle}
-                className="relative p-2 rounded-lg hover:bg-slate-100 transition group"
+                className="relative p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 transition flex flex-col items-center justify-center gap-0.5 group"
                 title="Bildirimler"
             >
-                <Bell className={`w-5 h-5 transition ${isOpen ? 'text-emerald-600' : 'text-slate-500 group-hover:text-slate-700'}`} />
+                <div className="relative">
+                    <Bell className={`w-5 h-5 transition ${isOpen ? 'text-emerald-600' : 'text-slate-500 group-hover:text-emerald-600'}`} />
 
-                {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full border-2 border-white animate-pulse shadow-sm">
-                        {unreadCount > 9 ? '9+' : unreadCount}
-                    </span>
-                )}
+                    {unreadCount > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full border-2 border-white animate-pulse shadow-sm leading-none">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                        </span>
+                    )}
+                </div>
+                <span className={`hidden md:block text-[10px] font-bold transition-colors mt-0.5 ${isOpen ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'}`}>
+                    Bildirimler
+                </span>
             </button>
 
             {/* Dropdown */}

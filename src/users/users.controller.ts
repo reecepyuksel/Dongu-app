@@ -1,14 +1,17 @@
 import {
   Controller,
   Get,
+  Patch,
   UseGuards,
   Request,
   Param,
   NotFoundException,
+  Body,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @ApiTags('users')
 @ApiBearerAuth()
@@ -29,6 +32,12 @@ export class UsersController {
     return { ...result, karma, successfulTradesCount };
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Patch('me')
+  async updateProfile(@Request() req, @Body() dto: UpdateUserDto) {
+    return this.usersService.updateProfile(req.user.userId, dto);
+  }
+
   // Kullanıcının paylaştığı eşyalar
   @UseGuards(AuthGuard('jwt'))
   @Get('me/items')
@@ -44,9 +53,13 @@ export class UsersController {
   }
 
   // Herkesin erişebileceği profil sayfası
+  @UseGuards(AuthGuard('jwt'))
   @Get('profile/:id')
-  async getPublicProfile(@Param('id') id: string) {
-    const profile = await this.usersService.getPublicProfile(id);
+  async getPublicProfile(@Param('id') id: string, @Request() req) {
+    const profile = await this.usersService.getPublicProfile(
+      id,
+      req.user.userId,
+    );
     if (!profile) {
       throw new NotFoundException('Kullanıcı bulunamadı');
     }
@@ -63,5 +76,11 @@ export class UsersController {
   @Get('profile/:id/winnings')
   async getProfileReceivedItems(@Param('id') id: string) {
     return this.usersService.getReceivedItems(id);
+  }
+
+  // Liderlik Sıralaması (Leaderboard) Endpoints
+  @Get('leaderboard')
+  async getLeaderboard() {
+    return this.usersService.getLeaderboard();
   }
 }

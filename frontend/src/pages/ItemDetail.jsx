@@ -28,7 +28,6 @@ import {
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import ChatModal from '../components/ChatModal';
 import DeliveryConfirmModal from '../components/DeliveryConfirmModal';
 import { formatDistanceToNow, format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -50,8 +49,6 @@ const ItemDetail = () => {
   const [isJoined, setIsJoined] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [joining, setJoining] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatPartner, setChatPartner] = useState(null);
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [winnerModalOpen, setWinnerModalOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -118,14 +115,6 @@ const ItemDetail = () => {
   }, [id, isAuthenticated]);
 
   useEffect(() => {
-    const chatWithId = searchParams.get('chatWith');
-    if (chatWithId) {
-      setChatPartner({ id: chatWithId });
-      setChatOpen(true);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
     setCurrentImageIndex(0);
   }, [id, item?.images?.length]);
 
@@ -150,6 +139,28 @@ const ItemDetail = () => {
       } else {
         showToast(msg, 'error');
       }
+    } finally {
+      setJoining(false);
+    }
+  };
+
+  const handleBendeVarClick = async () => {
+    if (!isAuthenticated) {
+      showToast('Mesaj göndermek için giriş yapmalısınız.', 'info');
+      navigate('/login');
+      return;
+    }
+    setJoining(true); // Re-use the joining state for loading
+    try {
+      const payload = {
+        content: `Selam, aradığın ${item.title} bende var, sana ulaştırmak isterim!`,
+        targetUserId: item.owner.id
+      };
+      await api.post(`/messages/${item.id}`, payload);
+      showToast('Mesajınız başarıyla gönderildi!', 'success');
+      navigate(`/chat?partnerId=${item.owner.id}&partnerName=${encodeURIComponent(item.owner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Mesaj gönderilemedi.', 'error');
     } finally {
       setJoining(false);
     }
@@ -247,6 +258,7 @@ const ItemDetail = () => {
   const timeAgoStr = item.drawDate
     ? formatDistanceToNow(new Date(item.drawDate), { locale: tr })
     : '';
+  const postedAgoStr = item.createdAt ? formatDistanceToNow(new Date(item.createdAt), { locale: tr, addSuffix: true }) : '';
 
   const isOwner = user?.id === item.owner?.id;
   const isWinner = user?.id === item.winner?.id;
@@ -255,7 +267,9 @@ const ItemDetail = () => {
     item.images && item.images.length > 0
       ? item.images
       : [
-          item.imageUrl ||
+          item.postType === 'REQUESTING'
+            ? 'https://placehold.co/800x600/EFF6FF/2563EB?text=📸+Görsel+Bulunmuyor\nBu+ilan+bir+ihtiyaç+talebiveya+aranıyor+ilanıdır.&font=Outfit'
+            : item.imageUrl ||
             'https://via.placeholder.com/800x600?text=Gorsel+Yok',
         ];
   const activeImage = itemImages[currentImageIndex] || itemImages[0];
@@ -366,10 +380,7 @@ const ItemDetail = () => {
                   Eşyayı Teslim Aldım
                 </button>
                 <button
-                  onClick={() => {
-                    setChatPartner(null);
-                    setChatOpen(true);
-                  }}
+                  onClick={() => navigate(`/chat?partnerId=${item.owner.id}&partnerName=${encodeURIComponent(item.owner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`)}
                   className="px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-[14px] shadow-lg shadow-emerald-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -416,10 +427,7 @@ const ItemDetail = () => {
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    setChatPartner(null);
-                    setChatOpen(true);
-                  }}
+                  onClick={() => navigate(`/chat?partnerId=${item.winner.id}&partnerName=${encodeURIComponent(item.winner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`)}
                   className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-[14px] shadow-lg shadow-blue-600/20 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -615,8 +623,7 @@ const ItemDetail = () => {
                       'success',
                     );
                     setTimeout(() => {
-                      setChatPartner(null);
-                      setChatOpen(true);
+                      navigate(`/chat?partnerId=${winner.id}&partnerName=${encodeURIComponent(winner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`);
                     }, 800);
                   }}
                 />
@@ -642,6 +649,11 @@ const ItemDetail = () => {
                     ? '✔️ Tamamlandı'
                     : '⏳ Beklemede'}
               </span>
+              {item.postType === 'REQUESTING' && (
+                <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-100 text-blue-700 flex items-center gap-1.5 border border-blue-200 shadow-sm animate-in fade-in">
+                  <span className="text-[13px]">🔍</span> İHTİYAÇ İLANI
+                </span>
+              )}
               {item.selectionType && item.shareType !== 'exchange' && (
                 <span
                   className={`px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5 ${item.selectionType === 'manual' ? 'bg-violet-100 text-violet-700' : 'bg-purple-100 text-purple-700'}`}
@@ -657,12 +669,33 @@ const ItemDetail = () => {
             <h1 className="text-[28px] md:text-3xl font-extrabold text-slate-900 font-[Outfit] leading-[1.15] mb-4">
               {item.title}
             </h1>
-            <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+            <div className="flex items-center gap-3 text-sm text-slate-500 font-medium flex-wrap">
               <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                 <span className="text-emerald-500 text-lg">📍</span> {item.city}
                 , {item.district}
               </span>
+              {postedAgoStr && (
+                <span className="flex items-center gap-1.5 text-slate-600 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                  <Clock className="w-4 h-4 text-slate-400" /> {postedAgoStr} paylaşıldı
+                </span>
+              )}
             </div>
+
+            {item.postType === 'REQUESTING' && (
+              <div className="mt-6 mb-2 p-5 bg-gradient-to-r from-blue-50 to-indigo-50/50 border border-blue-100 rounded-[18px] flex items-center gap-4 shadow-sm relative overflow-hidden group">
+                <div className="absolute inset-0 bg-blue-400/5 mix-blend-overlay group-hover:bg-blue-400/10 transition-colors"></div>
+                <div className="relative">
+                  <div className="absolute -inset-2 bg-blue-200/50 rounded-full blur-sm animate-pulse"></div>
+                  <span className="relative text-3xl drop-shadow-sm">🎁</span>
+                </div>
+                <div className="relative">
+                  <p className="text-[14px] text-blue-900 font-bold leading-snug tracking-tight">
+                    Bu ihtiyacı gidererek <br className="sm:hidden" />
+                    <span className="bg-blue-100 px-1 py-0.5 rounded text-blue-700 font-black">200 İyilik Puanı</span> kazanabilirsin!
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="h-px w-full bg-slate-100 my-7" />
 
@@ -813,7 +846,16 @@ const ItemDetail = () => {
                     className="flex flex-col gap-3"
                   >
                     <div className="flex flex-col sm:flex-row gap-3">
-                      {item.shareType !== 'exchange' && (
+                      {item.postType === 'REQUESTING' ? (
+                        <button
+                          onClick={handleBendeVarClick}
+                          disabled={joining}
+                          className="flex-1 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[15px] rounded-[14px] shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+                        >
+                          <span className="text-xl">🙌</span>
+                          {joining ? 'Gönderiliyor...' : 'Bende Var!'}
+                        </button>
+                      ) : item.shareType !== 'exchange' ? (
                         <button
                           onClick={handleJoin}
                           disabled={joining}
@@ -822,7 +864,7 @@ const ItemDetail = () => {
                           <Heart className="w-5 h-5 fill-emerald-500 text-emerald-500" />
                           {joining ? 'İşleniyor...' : 'Döngüye Katıl'}
                         </button>
-                      )}
+                      ) : null}
 
                       {item.shareType === 'exchange' && (
                         <button
@@ -837,10 +879,7 @@ const ItemDetail = () => {
 
                     {canChat && (
                       <button
-                        onClick={() => {
-                          setChatPartner(null);
-                          setChatOpen(true);
-                        }}
+                        onClick={() => navigate(`/chat?partnerId=${item.owner.id}&partnerName=${encodeURIComponent(item.owner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`)}
                         className="w-full py-4 border-2 border-slate-100 hover:border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-[15px] rounded-[14px] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                       >
                         <MessageCircle className="w-5 h-5" />
@@ -862,10 +901,7 @@ const ItemDetail = () => {
                     )}
                     {canChat && (
                       <button
-                        onClick={() => {
-                          setChatPartner(null);
-                          setChatOpen(true);
-                        }}
+                        onClick={() => navigate(`/chat?partnerId=${item.owner.id}&partnerName=${encodeURIComponent(item.owner.fullName)}&itemId=${item.id}&itemTitle=${encodeURIComponent(item.title)}`)}
                         className="w-full py-3.5 text-slate-500 hover:text-slate-800 font-bold text-sm transition-colors flex items-center justify-center gap-2"
                       >
                         <MessageCircle className="w-4 h-4" />
@@ -898,21 +934,6 @@ const ItemDetail = () => {
           </div>
         </motion.div>
       </div>
-
-      {/* Chat Modal */}
-      <ChatModal
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        itemId={id}
-        itemTitle={item.title}
-        partnerName={
-          chatPartner?.fullName ||
-          (isOwner ? item.winner?.fullName : item.owner?.fullName)
-        }
-        partnerId={
-          chatPartner?.id || (isOwner ? item.winner?.id : item.owner?.id)
-        }
-      />
 
       {/* Winner Selection Modal */}
       <WinnerSelectionModal

@@ -183,220 +183,106 @@ const Dashboard = () => {
               {user?.fullName}
             </h1>
             <p className="text-slate-500 text-sm mt-1">{user?.email}</p>
-            <div className="mt-3 inline-flex text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
-              Doğrulanmış Döngü Üyesi
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <span className="inline-flex text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                Doğrulanmış Döngü Üyesi
+              </span>
+              {user?.karma?.rank <= 10 && (
+                <span className="inline-flex items-center gap-1 text-xs font-bold text-white bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-1.5 rounded-full shadow-sm" title="İlk 10'da yer alıyor!">
+                  <Trophy className="w-3 h-3" /> Topluluk Lideri
+                </span>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Karma & Impact Card Right */}
-        <div className="lg:col-span-2 relative bg-white rounded-3xl p-6 md:p-8 shadow-lg overflow-visible group">
-          {/* Subtle background glow */}
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 rounded-full bg-emerald-50 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-teal-50 blur-3xl pointer-events-none" />
+                {/* Karma & Impact Card — Minimalist Redesign */}
+        <div className="lg:col-span-2 relative bg-white rounded-3xl p-6 md:p-8 shadow-lg overflow-visible">
+          <div className="relative z-10 flex flex-col md:flex-row gap-8 h-full">
 
-          <div className="relative z-10 flex flex-col md:flex-row justify-between gap-8 h-full">
-            {/* Sol: İlerleme & Skor */}
+            {/* Sol: Gelişim Paneli */}
             <div className="flex-1 flex flex-col justify-center">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600">
-                  <Star className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-slate-800 font-[Outfit] leading-none mb-0.5">
-                    Döngü İstatistiklerin
-                  </h2>
-                  <p className="text-slate-400 text-xs font-medium">
-                    İyilik yolculuğundaki ilerlemen
-                  </p>
-                </div>
-              </div>
-
-              {/* Puan & Hedef Row */}
-              <div className="flex items-end justify-between mb-4">
-                <div>
-                  <p className="text-xs text-slate-400 font-medium mb-1">
-                    Mevcut Puan
-                  </p>
-                  <motion.span
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2, type: 'spring' }}
-                    className="text-4xl lg:text-5xl font-black text-slate-800 font-[Outfit]"
-                  >
-                    {user?.karmaPoint || 0}
-                  </motion.span>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400 font-medium mb-1">
-                    Sıradaki Hedef
-                  </p>
-                  <span className="text-2xl font-bold text-emerald-600 font-[Outfit]">
-                    {(() => {
-                      const kp = user?.karmaPoint || 0;
-                      if (kp >= 2000) return '🏆 Maks';
-                      if (kp >= 751) return '2000';
-                      if (kp >= 251) return '751';
-                      return '251';
-                    })()}
-                  </span>
+              <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-6 -mt-2">Döngü İstatistiklerin</p>
+              {/* Puan + Sıralama */}
+              <div className="flex items-center gap-4 mb-4">
+                <motion.span
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.2, type: 'spring' }}
+                  className="text-4xl lg:text-5xl font-black text-slate-800 font-[Outfit]"
+                >
+                  {user?.karmaPoint || 0}
+                </motion.span>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-full">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-bold text-amber-700">#{user?.karma?.rank || '-'}</span>
                 </div>
               </div>
 
-              {/* Badge */}
+              {/* Progress Bar — ince ve modern */}
               {(() => {
                 const kp = user?.karmaPoint || 0;
-                let badgeName = 'Yeni Paylaşımcı',
-                  badgeEmoji = '🥉',
-                  badgeColor = 'from-amber-100 to-amber-200 text-amber-800';
-                let nextName = 'İyilik Yolcusu',
-                  pointsLeft = 251 - kp;
-                if (kp > 2000) {
-                  badgeName = 'Döngü Ustası';
-                  badgeEmoji = '💎';
-                  badgeColor = 'from-emerald-100 to-teal-200 text-emerald-800';
-                  nextName = null;
-                  pointsLeft = 0;
-                } else if (kp >= 751) {
-                  badgeName = 'İyilik Elçisi';
-                  badgeEmoji = '🥇';
-                  badgeColor = 'from-yellow-100 to-amber-200 text-yellow-800';
-                  nextName = 'Döngü Ustası';
-                  pointsLeft = 2001 - kp;
-                } else if (kp >= 251) {
-                  badgeName = 'İyilik Yolcusu';
-                  badgeEmoji = '🥈';
-                  badgeColor = 'from-slate-100 to-slate-200 text-slate-700';
-                  nextName = 'İyilik Elçisi';
-                  pointsLeft = 751 - kp;
-                }
+                let badgeName = 'Yeni Paylaşımcı', badgeEmoji = '🥉', badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                let nextName = 'İyilik Yolcusu', pointsLeft = 251 - kp;
+                if (kp > 2000) { badgeName = 'Döngü Ustası'; badgeEmoji = '💎'; badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200'; nextName = null; pointsLeft = 0; }
+                else if (kp >= 751) { badgeName = 'İyilik Elçisi'; badgeEmoji = '🥇'; badgeColor = 'bg-yellow-50 text-yellow-700 border-yellow-200'; nextName = 'Döngü Ustası'; pointsLeft = 2001 - kp; }
+                else if (kp >= 251) { badgeName = 'İyilik Yolcusu'; badgeEmoji = '🥈'; badgeColor = 'bg-slate-50 text-slate-600 border-slate-200'; nextName = 'İyilik Elçisi'; pointsLeft = 751 - kp; }
 
-                let currentMin = 0,
-                  currentMax = 250;
-                if (kp >= 2000) {
-                  currentMin = 2000;
-                  currentMax = 2000;
-                } else if (kp >= 751) {
-                  currentMin = 751;
-                  currentMax = 2000;
-                } else if (kp >= 251) {
-                  currentMin = 251;
-                  currentMax = 750;
-                }
-                const pct =
-                  kp >= 2000
-                    ? 100
-                    : Math.min(
-                        ((kp - currentMin) / (currentMax - currentMin)) * 100,
-                        100,
-                      );
+                let currentMin = 0, currentMax = 250;
+                if (kp >= 2000) { currentMin = 2000; currentMax = 2000; }
+                else if (kp >= 751) { currentMin = 751; currentMax = 2000; }
+                else if (kp >= 251) { currentMin = 251; currentMax = 750; }
+                const pct = kp >= 2000 ? 100 : Math.min(((kp - currentMin) / (currentMax - currentMin)) * 100, 100);
 
                 return (
                   <>
-                    <span
-                      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r ${badgeColor} shadow-sm mb-4 w-fit`}
-                    >
-                      {badgeEmoji} {badgeName}
-                    </span>
-
-                    {/* Interactive Progress Bar */}
-                    <div className="max-w-full w-full relative group/bar mt-2">
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden relative shadow-inner cursor-pointer">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${pct}%` }}
-                            transition={{
-                              duration: 1.8,
-                              ease: 'easeOut',
-                              delay: 0.3,
-                            }}
-                            className={`absolute h-full rounded-full ${
-                              kp < 251
-                                ? 'bg-gradient-to-r from-amber-400 to-amber-500'
-                                : kp < 751
-                                  ? 'bg-gradient-to-r from-slate-400 to-slate-500'
-                                  : kp < 2000
-                                    ? 'bg-gradient-to-r from-yellow-400 to-amber-500'
-                                    : 'bg-gradient-to-r from-emerald-400 to-teal-500'
-                            }`}
-                          />
-                          {kp >= 751 && (
-                            <motion.div
-                              initial={{ x: '-100%', opacity: 0 }}
-                              animate={{ x: '250%', opacity: 0.5 }}
-                              transition={{
-                                repeat: Infinity,
-                                duration: 2.5,
-                                ease: 'linear',
-                              }}
-                              className="absolute top-0 left-0 w-1/3 h-full bg-gradient-to-r from-transparent via-white to-transparent"
-                            />
-                          )}
-                        </div>
-
-                        {/* Target Indicator */}
-                        {nextName && (
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-lg shadow-sm group-hover/bar:scale-110 transition-transform duration-300">
-                            {nextName === 'İyilik Yolcusu'
-                              ? '🥈'
-                              : nextName === 'İyilik Elçisi'
-                                ? '🥇'
-                                : '💎'}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Hover Tooltip */}
-                      <div className="absolute -top-14 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[11px] font-medium px-4 py-2 rounded-xl shadow-xl opacity-0 group-hover/bar:opacity-100 transition-all duration-300 pointer-events-none max-w-[min(90vw,28rem)] text-center whitespace-normal z-20">
-                        {nextName
-                          ? `Bu bar dolunca ${nextName} olacaksın! Kalan: ${pointsLeft} puan ✨`
-                          : 'Tebrikler! Maksimum seviyeye ulaştın! 🏆'}
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-2 h-2 bg-slate-800 rotate-45" />
-                      </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-3">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 1.5, ease: 'easeOut', delay: 0.3 }}
+                        className={`h-full rounded-full ${
+                          kp < 251 ? 'bg-amber-400' : kp < 751 ? 'bg-slate-400' : kp < 2000 ? 'bg-yellow-400' : 'bg-emerald-500'
+                        }`}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${badgeColor}`}>
+                        {badgeEmoji} {badgeName}
+                      </span>
+                      {nextName && (
+                        <span className="text-xs text-slate-400 font-medium">
+                          {nextName}'e <span className="text-emerald-600 font-bold">{pointsLeft}</span> puan
+                        </span>
+                      )}
                     </div>
                   </>
                 );
               })()}
             </div>
 
-            {/* Sağ: İstatistikler & Buton */}
-            <div className="flex flex-col items-start md:items-end justify-between border-t md:border-t-0 md:border-l border-slate-100 pt-6 md:pt-0 md:pl-8">
-              <div className="flex gap-4 mb-6 md:mb-0 w-full md:w-auto">
-                <div className="flex-1 md:flex-none flex flex-col items-center md:items-end bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl">
-                  <span className="text-3xl font-bold text-slate-800 mb-1">
-                    {myItems.length}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium text-center md:text-right">
-                    Döngüye Katılan
-                    <br />
-                    Eşya
-                  </span>
+            {/* Sağ: 2x2 Stat Grid + Paylaş Butonu */}
+            <div className="flex flex-col justify-between md:w-64 lg:w-72">
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-gray-50 rounded-xl p-3 flex flex-col items-center text-center">
+                  <Package className="w-5 h-5 text-blue-500 mb-1.5" />
+                  <span className="text-xl font-bold text-slate-800">{myItems.length}</span>
+                  <span className="text-xs text-slate-400 font-medium mt-0.5">Paylaşılan</span>
                 </div>
-                <div className="w-px bg-slate-100 hidden md:block"></div>
-                <div className="flex-1 md:flex-none flex flex-col items-center md:items-end bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl">
-                  <span className="text-3xl font-bold text-slate-800 mb-1">
-                    {newOwnerCount}
-                  </span>
-                  <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium text-center md:text-right">
-                    Yeni Sahibi
-                    <br />
-                    Olduğun
-                  </span>
+                <div className="bg-gray-50 rounded-xl p-3 flex flex-col items-center text-center">
+                  <Handshake className="w-5 h-5 text-purple-500 mb-1.5" />
+                  <span className="text-xl font-bold text-slate-800">{successfulTradesCount}</span>
+                  <span className="text-xs text-slate-400 font-medium mt-0.5">Takas</span>
                 </div>
-                <div className="w-px bg-slate-100 hidden md:block"></div>
-                <div className="flex-1 md:flex-none flex flex-col items-center md:items-end bg-slate-50 md:bg-transparent p-3 md:p-0 rounded-xl">
-                  <div className="flex items-center gap-1 mb-1 text-slate-700">
-                    <Handshake className="w-4 h-4" />
-                    <span className="text-3xl font-bold text-slate-800">
-                      {successfulTradesCount}
-                    </span>
-                  </div>
-                  <span className="text-[10px] uppercase tracking-widest text-slate-400 font-medium text-center md:text-right">
-                    Başarılı Takas
-                    <br />
-                    Tamamlandı
-                  </span>
+                <div className="bg-gray-50 rounded-xl p-3 flex flex-col items-center text-center">
+                  <Heart className="w-5 h-5 text-rose-500 mb-1.5" />
+                  <span className="text-xl font-bold text-slate-800">{user?.resolvedRequestsCount || 0}</span>
+                  <span className="text-xs text-slate-400 font-medium mt-0.5">İhtiyaç Giderilen</span>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3 flex flex-col items-center text-center">
+                  <Gift className="w-5 h-5 text-emerald-500 mb-1.5" />
+                  <span className="text-xl font-bold text-slate-800">{newOwnerCount}</span>
+                  <span className="text-xs text-slate-400 font-medium mt-0.5">Kazanılan</span>
                 </div>
               </div>
 
@@ -404,30 +290,24 @@ const Dashboard = () => {
                 onClick={() => {
                   const text = `Döngü'de ${myItems.length} eşyayı paylaşıma kattım, ${user?.karmaPoint || 0} İyilik Puanına ulaştım! #Döngü #PaylaşYeniBirHikayeBaşlasın`;
                   if (navigator.share) {
-                    navigator
-                      .share({
-                        title: 'Döngü Başarımım',
-                        text: text,
-                        url: window.location.origin,
-                      })
-                      .catch(console.error);
+                    navigator.share({ title: 'Döngü Başarımım', text, url: window.location.origin }).catch(console.error);
                   } else {
                     navigator.clipboard.writeText(text);
-                    showToast(
-                      'Başarımınız panoya kopyalandı! Dilediğiniz yerde paylaşabilirsiniz.',
-                      'success',
-                    );
+                    showToast('Başarımınız panoya kopyalandı! Dilediğiniz yerde paylaşabilirsiniz.', 'success');
                   }
                 }}
-                className="w-full md:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-100 font-bold rounded-xl transition-all hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group/btn"
+                className="w-full px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-sm font-semibold rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
               >
-                <Share2 className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" />
+                <Share2 className="w-4 h-4" />
                 Başarımı Paylaş
               </button>
             </div>
+
           </div>
         </div>
+
       </motion.div>
+
 
       {/* Tablos & Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">

@@ -17,6 +17,7 @@ export const ItemCard = ({
   district,
   selectionType,
   shareType,
+  postType,
   deliveryMethods,
   isFavorited,
   onFavoriteToggle,
@@ -40,7 +41,7 @@ export const ItemCard = ({
       whileHover={{ y: -5 }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 h-full flex flex-col"
+      className={`group relative bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 h-full flex flex-col ${postType === 'REQUESTING' ? 'border-2 border-blue-400 shadow-[0_4px_16px_rgba(59,130,246,0.3)]' : 'border border-slate-100'}`}
     >
       {/* Image Container */}
       <div className="relative h-64 aspect-[4/3] overflow-hidden bg-slate-100">
@@ -74,6 +75,13 @@ export const ItemCard = ({
         <div className="absolute top-4 left-0 w-full px-4 flex justify-between items-start z-30 pointer-events-none">
           {/* Left Badges */}
           <div className="flex flex-col gap-2 items-start pointer-events-auto">
+            {/* Requesting Badge */}
+            {postType === 'REQUESTING' && (
+              <div className="bg-blue-600/95 backdrop-blur-sm px-3.5 py-1.5 rounded-full text-xs font-black text-white shadow-xl flex items-center gap-1 border border-blue-400">
+                <span className="text-sm animate-pulse-slow">🎯</span> ARANIYOR
+              </div>
+            )}
+
             {/* Selection Type Badge */}
             {selectionType && shareType !== 'exchange' && (
               <div

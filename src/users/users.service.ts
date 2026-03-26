@@ -1,4 +1,9 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
@@ -9,7 +14,9 @@ import {
 } from '../items/entities/item.entity';
 import { Giveaway } from '../giveaways/entities/giveaway.entity';
 import { Message, TradeStatus } from '../messages/entities/message.entity';
+import { BlockedUser } from '../messages/entities/blocked-user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -23,6 +30,8 @@ export class UsersService {
     private giveawaysRepository: Repository<Giveaway>,
     @InjectRepository(Message)
     private messagesRepository: Repository<Message>,
+    @InjectRepository(BlockedUser)
+    private blockedUsersRepository: Repository<BlockedUser>,
   ) {}
 
   async getSuccessfulTradesCount(userId: string): Promise<number> {
@@ -77,6 +86,66 @@ export class UsersService {
     }
   }
 
+  async updateProfile(
+    userId: string,
+    dto: UpdateUserDto,
+  ): Promise<Omit<User, 'password'>> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Kullanici bulunamadi');
+    }
+
+    if (dto.email && dto.email !== user.email) {
+      const existingByEmail = await this.usersRepository.findOne({
+        where: { email: dto.email },
+      });
+      if (existingByEmail && existingByEmail.id !== user.id) {
+        throw new ConflictException(
+          'Bu e-posta baska bir hesap tarafindan kullaniliyor',
+        );
+      }
+      user.email = dto.email;
+      user.isEmailVerified = false;
+    }
+
+    if (dto.fullName !== undefined) user.fullName = dto.fullName;
+    if (dto.bio !== undefined) user.bio = dto.bio;
+    if (dto.city !== undefined) user.city = dto.city;
+    if (dto.district !== undefined) user.district = dto.district;
+    if (dto.notifyTradeOffers !== undefined)
+      user.notifyTradeOffers = dto.notifyTradeOffers;
+    if (dto.notifyMessages !== undefined)
+      user.notifyMessages = dto.notifyMessages;
+
+    if (dto.phone !== undefined) {
+      const nextPhone = dto.phone?.trim() || null;
+      const phoneChanged = (user.phone || null) !== nextPhone;
+      user.phone = nextPhone as any;
+      if (phoneChanged) {
+        user.isPhoneVerified = false;
+      }
+    }
+
+    if (dto.isEmailVerified !== undefined) {
+      user.isEmailVerified = dto.isEmailVerified;
+    }
+
+    if (dto.isPhoneVerified !== undefined) {
+      user.isPhoneVerified = dto.isPhoneVerified && Boolean(user.phone);
+    }
+
+    user.trustScore =
+      (user.isEmailVerified ? 50 : 0) + (user.isPhoneVerified ? 50 : 0);
+
+    if (dto.newPassword) {
+      user.password = await bcrypt.hash(dto.newPassword, 10);
+    }
+
+    const saved = await this.usersRepository.save(user);
+    const { password, ...result } = saved;
+    return result;
+  }
+
   // Kullanıcının paylaştığı eşyalar
   async findUserItems(userId: string): Promise<Item[]> {
     return this.itemsRepository.find({
@@ -99,6 +168,7 @@ export class UsersService {
   async getKarmaScore(userId: string) {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     const karmaPoint = user?.karmaPoint || 0;
+    const rank = await this.getUserRank(userId);
 
     // Bağışlanan eşyalar (GIVEN_AWAY)
     const donatedItems = await this.itemsRepository.count({
@@ -155,6 +225,7 @@ export class UsersService {
 
     return {
       score: karmaPoint,
+      rank,
       badge,
       nextRankAt,
       nextRankName,
@@ -169,8 +240,20 @@ export class UsersService {
   }
 
   // Herkesin görebildiği genel profil
-  async getPublicProfile(userId: string) {
+  async getPublicProfile(userId: string, viewerId?: string) {
     try {
+      if (viewerId && viewerId !== userId) {
+        const blocked = await this.blockedUsersRepository.findOne({
+          where: [
+            { blocker: { id: viewerId }, blocked: { id: userId } },
+            { blocker: { id: userId }, blocked: { id: viewerId } },
+          ],
+        });
+        if (blocked) {
+          throw new ForbiddenException('Bu profil görüntülenemiyor.');
+        }
+      }
+
       const user = await this.usersRepository.findOne({
         where: { id: userId },
       });
@@ -211,7 +294,15 @@ export class UsersService {
         id: user.id,
         fullName: user.fullName,
         avatarUrl: user.avatarUrl,
+        bio: user.bio,
+        city: user.city,
+        district: user.district,
+        isVerifiedAccount: Boolean(
+          user.isEmailVerified && user.isPhoneVerified,
+        ),
+        trustScore: user.trustScore,
         karmaPoint: user.karmaPoint,
+        resolvedRequestsCount: user.resolvedRequestsCount,
         badges: user.badges,
         createdAt: user.createdAt,
         activeItems,
@@ -256,5 +347,43 @@ export class UsersService {
       ],
       order: { createdAt: 'DESC' },
     });
+  }
+
+  // Genel Liderlik Sıralaması
+  async getLeaderboard(limit = 100) {
+    const rawQuery = `
+      SELECT 
+        id, 
+        "fullName", 
+        "avatarUrl", 
+        "karmaPoint",
+        badges,
+        ROW_NUMBER() OVER(ORDER BY "karmaPoint" DESC, "createdAt" ASC) as rank
+      FROM "user"
+      ORDER BY "karmaPoint" DESC, "createdAt" ASC
+      LIMIT $1
+    `;
+    const result = await this.usersRepository.query(rawQuery, [limit]);
+    
+    return result.map((u: any) => ({
+      ...u,
+      rank: parseInt(u.rank, 10),
+      karmaPoint: parseInt(u.karmaPoint, 10) || 0,
+    }));
+  }
+
+  // Kullanıcının Sıralamasını (Rank) Hesapla
+  async getUserRank(userId: string): Promise<number | null> {
+    const rawQuery = `
+      SELECT rank FROM (
+        SELECT id, ROW_NUMBER() OVER(ORDER BY "karmaPoint" DESC, "createdAt" ASC) as rank
+        FROM "user"
+      ) r WHERE id = $1
+    `;
+    const result = await this.usersRepository.query(rawQuery, [userId]);
+    if (result && result.length > 0) {
+      return parseInt(result[0].rank, 10);
+    }
+    return null;
   }
 }

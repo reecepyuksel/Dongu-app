@@ -22,6 +22,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 
 @Controller('items')
 export class ItemsController {
@@ -62,18 +63,28 @@ export class ItemsController {
     return this.itemsService.create(createItemDto, req.user.userId, imageUrls);
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get()
   findAll(
     @Query('city') city?: string,
     @Query('district') district?: string,
     @Query('shareType') shareType?: string,
+    @Query('postType') postType?: string,
+    @Request() req?,
   ) {
-    return this.itemsService.findAll(city, district, shareType);
+    return this.itemsService.findAll(
+      city,
+      district,
+      shareType,
+      postType,
+      req.user?.userId,
+    );
   }
 
+  @UseGuards(OptionalJwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.itemsService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.itemsService.findOne(id, req.user?.userId);
   }
 
   @UseGuards(JwtAuthGuard)

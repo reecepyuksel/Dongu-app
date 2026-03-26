@@ -13,6 +13,7 @@ import {
   BadRequestException,
   HttpCode,
   HttpStatus,
+  ForbiddenException,
 } from '@nestjs/common';
 import {
   FileInterceptor,
@@ -47,11 +48,72 @@ export class MessagesController {
     return this.messagesService.getMyConversations(req.user.userId);
   }
 
+  @UseGuards(AuthGuard('jwt'))
+  @Get('blocked-users')
+  getBlockedUsers(@Request() req) {
+    return this.messagesService.getBlockedUsers(req.user.userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('block/:userId')
+  blockUser(@Param('userId') userId: string, @Request() req) {
+    if (userId === req.user.userId) {
+      throw new ForbiddenException('Kendinizi engelleyemezsiniz.');
+    }
+    return this.messagesService.blockUser(req.user.userId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('block/:userId')
+  unblockUser(@Param('userId') userId: string, @Request() req) {
+    return this.messagesService.unblockUser(req.user.userId, userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Post('report/:userId')
+  reportUser(
+    @Param('userId') userId: string,
+    @Body('reason') reason: string,
+    @Body('details') details: string,
+    @Request() req,
+  ) {
+    return this.messagesService.reportUser(
+      req.user.userId,
+      userId,
+      reason,
+      details,
+    );
+  }
+
   // Takas tekliflerim
   @UseGuards(AuthGuard('jwt'))
   @Get('my-trade-offers')
   getMyTradeOffers(@Request() req) {
     return this.messagesService.getMyTradeOffers(req.user.userId);
+  }
+
+  // Dosya yükleme (sohbet ekleri)
+  @UseGuards(AuthGuard('jwt'))
+  @Post('upload-attachment')
+  @UseInterceptors(FileFieldsInterceptor([{ name: 'files', maxCount: 5 }]))
+  async uploadAttachment(
+    @UploadedFiles() files: { files?: Express.Multer.File[] },
+  ) {
+    if (!files?.files?.length) {
+      throw new BadRequestException('Yüklenecek dosya bulunamadı.');
+    }
+    try {
+      const results = await Promise.all(
+        files.files.map((f) => this.cloudinaryService.uploadImage(f)),
+      );
+      return {
+        urls: results.map((r) => r.secure_url).filter(Boolean),
+      };
+    } catch (err) {
+      throw new BadRequestException(
+        err?.message || 'Dosya yükleme sırasında hata oluştu.',
+      );
+    }
   }
 
   // Direkt mesaj gönder (İlan bağımsız)
@@ -60,12 +122,16 @@ export class MessagesController {
   sendDirectMessage(
     @Param('userId') targetUserId: string,
     @Body('content') content: string,
+    @Body('attachmentUrls') attachmentUrls: string[],
+    @Body('attachmentType') attachmentType: string,
     @Request() req,
   ) {
     return this.messagesService.sendDirectMessage(
       req.user.userId,
       targetUserId,
       content,
+      attachmentUrls,
+      attachmentType,
     );
   }
 
@@ -76,6 +142,8 @@ export class MessagesController {
     @Param('itemId') itemId: string,
     @Body('content') content: string,
     @Body('targetUserId') targetUserId: string,
+    @Body('attachmentUrls') attachmentUrls: string[],
+    @Body('attachmentType') attachmentType: string,
     @Request() req,
   ) {
     return this.messagesService.sendMessage(
@@ -83,6 +151,8 @@ export class MessagesController {
       req.user.userId,
       content,
       targetUserId,
+      attachmentUrls,
+      attachmentType,
     );
   }
 
@@ -265,12 +335,16 @@ export class MessagesController {
   sendTradeMessage(
     @Param('tradeId') tradeId: string,
     @Body('content') content: string,
+    @Body('attachmentUrls') attachmentUrls: string[],
+    @Body('attachmentType') attachmentType: string,
     @Request() req,
   ) {
     return this.messagesService.sendTradeMessage(
       tradeId,
       req.user.userId,
       content,
+      attachmentUrls,
+      attachmentType,
     );
   }
 

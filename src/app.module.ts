@@ -14,6 +14,8 @@ import { MessagesModule } from './messages/messages.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { FavoritesModule } from './favorites/favorites.module';
+import { ThanksModule } from './thanks/thanks.module';
+import { CommunitiesModule } from './communities/communities.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { FavoritesModule } from './favorites/favorites.module';
     CloudinaryModule,
     NotificationsModule,
     FavoritesModule,
+    ThanksModule,
+    CommunitiesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

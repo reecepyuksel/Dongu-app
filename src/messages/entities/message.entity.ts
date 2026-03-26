@@ -56,6 +56,13 @@ export class Message {
   @Column({ type: 'varchar', nullable: true })
   tradeOfferId: string | null;
 
+  // Chat attachment support
+  @Column({ type: 'simple-json', nullable: true })
+  attachmentUrls: string[] | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  attachmentType: string | null; // 'image' | 'document'
+
   // Soft-delete flag — silindi işaretlenen mesajlar sorgulara dahil edilmez
   @Column({ default: false })
   isDeleted: boolean;

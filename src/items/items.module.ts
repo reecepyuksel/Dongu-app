@@ -7,10 +7,12 @@ import { User } from '../users/entities/user.entity';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { Message } from '../messages/entities/message.entity';
+import { Community } from '../communities/entities/community.entity';
+import { CommunityMember } from '../communities/entities/community-member.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Item, User, Message]),
+    TypeOrmModule.forFeature([Item, User, Message, Community, CommunityMember]),
     CloudinaryModule,
     NotificationsModule,
   ],

@@ -14,6 +14,8 @@ import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
 import { MessagesGateway } from './messages.gateway';
+import { BlockedUser } from './entities/blocked-user.entity';
+import { Report } from './entities/report.entity';
 
 @Injectable()
 export class MessagesService {
@@ -24,10 +26,122 @@ export class MessagesService {
     private itemsRepository: Repository<Item>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(BlockedUser)
+    private blockedUsersRepository: Repository<BlockedUser>,
+    @InjectRepository(Report)
+    private reportsRepository: Repository<Report>,
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
     private messagesGateway: MessagesGateway,
   ) {}
+
+  private async isBlockedBetween(userAId: string, userBId: string) {
+    const blocked = await this.blockedUsersRepository.findOne({
+      where: [
+        { blocker: { id: userAId }, blocked: { id: userBId } },
+        { blocker: { id: userBId }, blocked: { id: userAId } },
+      ],
+    });
+    return Boolean(blocked);
+  }
+
+  async blockUser(blockerId: string, blockedId: string) {
+    const existing = await this.blockedUsersRepository.findOne({
+      where: { blocker: { id: blockerId }, blocked: { id: blockedId } },
+      relations: ['blocker', 'blocked'],
+    });
+
+    if (existing) {
+      return { success: true, alreadyBlocked: true };
+    }
+
+    const blocker = await this.usersRepository.findOne({
+      where: { id: blockerId },
+    });
+    const blocked = await this.usersRepository.findOne({
+      where: { id: blockedId },
+    });
+    if (!blocker || !blocked) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    const record = this.blockedUsersRepository.create({ blocker, blocked });
+    await this.blockedUsersRepository.save(record);
+    return { success: true };
+  }
+
+  async unblockUser(blockerId: string, blockedId: string) {
+    await this.blockedUsersRepository.delete({
+      blocker: { id: blockerId },
+      blocked: { id: blockedId },
+    });
+    return { success: true };
+  }
+
+  async getBlockedUsers(blockerId: string) {
+    const list = await this.blockedUsersRepository.find({
+      where: { blocker: { id: blockerId } },
+      relations: ['blocked'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return list.map((entry) => ({
+      id: entry.id,
+      blockedUser: this.sanitizeUserForClient(entry.blocked),
+      createdAt: entry.createdAt,
+    }));
+  }
+
+  async reportUser(
+    reporterId: string,
+    reportedUserId: string,
+    reason: string,
+    details?: string,
+  ) {
+    if (!reason?.trim()) {
+      throw new BadRequestException('Şikayet nedeni zorunludur.');
+    }
+
+    const reporter = await this.usersRepository.findOne({
+      where: { id: reporterId },
+    });
+    const reportedUser = await this.usersRepository.findOne({
+      where: { id: reportedUserId },
+    });
+    if (!reporter || !reportedUser) {
+      throw new NotFoundException('Kullanıcı bulunamadı.');
+    }
+
+    const report = this.reportsRepository.create({
+      reporter,
+      reportedUser,
+      reason: reason.trim(),
+      details: details?.trim() || undefined,
+    });
+
+    await this.reportsRepository.save(report);
+    return { success: true };
+  }
+
+  private sanitizeUserForClient(user?: User | null) {
+    if (!user) return null;
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      avatarUrl: user.avatarUrl,
+      trustScore: user.trustScore,
+      isVerifiedAccount: Boolean(user.isEmailVerified && user.isPhoneVerified),
+    };
+  }
+
+  private sanitizeMessageForClient(message: any) {
+    if (!message) return message;
+    return {
+      ...message,
+      sender: this.sanitizeUserForClient(message.sender),
+      receiver: this.sanitizeUserForClient(message.receiver),
+    };
+  }
 
   async sendTradeOffer(
     targetItemId: string,
@@ -55,6 +169,10 @@ export class MessagesService {
         throw new NotFoundException('İstenilen ilan bulunamadı.');
       if (targetItem.status !== ItemStatus.AVAILABLE)
         throw new BadRequestException('Bu ilan artık takasa açık değil.');
+
+      if (await this.isBlockedBetween(senderId, targetItem.owner.id)) {
+        throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+      }
 
       let content = '';
       let finalOfferedItemId: string | null = null;
@@ -138,7 +256,10 @@ export class MessagesService {
       });
 
       if (result && result.receiver && result.sender) {
-        this.messagesGateway.notifyNewMessage(result.receiver.id, result);
+        this.messagesGateway.notifyNewMessage(
+          result.receiver.id,
+          this.sanitizeMessageForClient(result),
+        );
         await this.notificationsService.createNotification(
           result.receiver.id,
           '🔄 Yeni Takas Teklifi',
@@ -148,13 +269,13 @@ export class MessagesService {
         );
       }
 
-      return {
+      return this.sanitizeMessageForClient({
         ...(result as Message),
         photoUrl: result?.tradeMediaUrls?.[0] || result?.tradeMediaUrl || null,
         photos:
           result?.tradeMediaUrls ||
           (result?.tradeMediaUrl ? [result.tradeMediaUrl] : []),
-      } as Message;
+      } as Message);
     } catch (error) {
       console.error('sendTradeOffer service error:', error);
       throw error;
@@ -315,6 +436,8 @@ export class MessagesService {
     senderId: string,
     content: string,
     targetUserId?: string,
+    attachmentUrls?: string[],
+    attachmentType?: string,
   ): Promise<Message> {
     const item = await this.itemsRepository.findOne({
       where: { id: itemId },
@@ -326,24 +449,16 @@ export class MessagesService {
     let receiverId: string;
 
     if (targetUserId) {
-      // Eğer hedef kullanıcı belirtilmişse onu kullan (örn: İlan sahibi -> Kazanan)
       receiverId = targetUserId;
-      // Validasyon: Sadece ilanın sahibi kazanana, veya kazanan sahibine atabilir gibi kısıtlar eklenebilir
-      // Şimdilik esnek bırakıyoruz ama mantıksal kontrol:
       if (item.owner.id === senderId && item.winner?.id !== targetUserId) {
-        // İlan sahibi, kazanan olmayan birine mesaj atıyor?
-        // Belki eski konuşmaya dönüyordur, serbest bırakalım.
       }
     } else {
-      // Hedef belirtilmemişse otomatik belirle
-      // Kendi ilanına mesaj atamaz (iletişim her zaman karşı tarafla)
       if (item.owner.id === senderId) {
-        // İlan sahibi cevap yazıyorsa: mevcut konuşmadan son mesajı bul
         const lastReceived = await this.messagesRepository.findOne({
           where: {
             item: { id: itemId },
             receiver: { id: senderId },
-            sender: Not(IsNull()), // Ignore system messages
+            sender: Not(IsNull()),
           },
           relations: ['sender'],
           order: { createdAt: 'DESC' },
@@ -356,17 +471,30 @@ export class MessagesService {
         }
         receiverId = lastReceived.sender.id;
       } else {
-        // Diğer kullanıcılar → ilan sahibine mesaj gönderir
         receiverId = item.owner.id;
       }
     }
+
+    if (await this.isBlockedBetween(senderId, receiverId)) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+    }
+
+    const normalizedAttachments = Array.isArray(attachmentUrls)
+      ? attachmentUrls.filter(Boolean)
+      : null;
 
     const message = this.messagesRepository.create({
       item: { id: itemId },
       sender: { id: senderId },
       receiver: { id: receiverId },
-      content,
+      content: content || '',
       isRead: false,
+      attachmentUrls: normalizedAttachments?.length
+        ? normalizedAttachments
+        : null,
+      attachmentType: normalizedAttachments?.length
+        ? attachmentType || null
+        : null,
     });
 
     const savedMessage = await this.messagesRepository.save(message);
@@ -382,7 +510,10 @@ export class MessagesService {
 
     // Notify receiver of new message via WebSocket
     if (result.receiver) {
-      this.messagesGateway.notifyNewMessage(result.receiver.id, result);
+      this.messagesGateway.notifyNewMessage(
+        result.receiver.id,
+        this.sanitizeMessageForClient(result),
+      );
     }
 
     // Notify receiver of new message
@@ -397,7 +528,7 @@ export class MessagesService {
       );
     }
 
-    return result;
+    return this.sanitizeMessageForClient(result);
   }
 
   // İlan bazlı mesaj geçmişi — konuşmada yer alan herkes görebilir
@@ -409,8 +540,12 @@ export class MessagesService {
 
     if (!item) throw new NotFoundException('İlan bulunamadı.');
 
+    if (await this.isBlockedBetween(userId, item.owner.id)) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+    }
+
     // Kullanıcı bu ilana ait mesajlarda yer alıyorsa gösterebiliriz
-    return this.messagesRepository.find({
+    const messages = await this.messagesRepository.find({
       where: [
         {
           item: { id: itemId },
@@ -428,6 +563,8 @@ export class MessagesService {
       relations: ['sender', 'receiver'],
       order: { createdAt: 'ASC' },
     });
+
+    return messages.map((msg) => this.sanitizeMessageForClient(msg));
   }
 
   // Kullanıcı ile olan tüm mesaj geçmişi (WhatsApp style)
@@ -435,7 +572,11 @@ export class MessagesService {
     currentUserId: string,
     otherUserId: string,
   ): Promise<Message[]> {
-    return this.messagesRepository.find({
+    if (await this.isBlockedBetween(currentUserId, otherUserId)) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+    }
+
+    const messages = await this.messagesRepository.find({
       where: [
         {
           sender: { id: currentUserId },
@@ -453,6 +594,8 @@ export class MessagesService {
       relations: ['sender', 'receiver', 'item'],
       order: { createdAt: 'ASC' },
     });
+
+    return messages.map((msg) => this.sanitizeMessageForClient(msg));
   }
 
   // Direkt mesaj (İlan bağımsız)
@@ -460,13 +603,29 @@ export class MessagesService {
     senderId: string,
     receiverId: string,
     content: string,
+    attachmentUrls?: string[],
+    attachmentType?: string,
   ): Promise<Message> {
+    if (await this.isBlockedBetween(senderId, receiverId)) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+    }
+
+    const normalizedAttachments = Array.isArray(attachmentUrls)
+      ? attachmentUrls.filter(Boolean)
+      : null;
+
     const message = this.messagesRepository.create({
       item: null,
       sender: { id: senderId },
       receiver: { id: receiverId },
-      content,
+      content: content || '',
       isRead: false,
+      attachmentUrls: normalizedAttachments?.length
+        ? normalizedAttachments
+        : null,
+      attachmentType: normalizedAttachments?.length
+        ? attachmentType || null
+        : null,
     });
 
     const savedMessage = await this.messagesRepository.save(message);
@@ -479,15 +638,29 @@ export class MessagesService {
     if (!result) throw new Error('Message saved but could not be retrieved');
 
     if (result.receiver) {
-      this.messagesGateway.notifyNewMessage(result.receiver.id, result);
+      this.messagesGateway.notifyNewMessage(
+        result.receiver.id,
+        this.sanitizeMessageForClient(result),
+      );
     }
 
-    return result;
+    return this.sanitizeMessageForClient(result);
   }
 
   // Tüm aktif konuşmalar (Kişi bazlı gruplama)
   async getMyConversations(userId: string) {
     try {
+      const blockRelations = await this.blockedUsersRepository.find({
+        where: [{ blocker: { id: userId } }, { blocked: { id: userId } }],
+        relations: ['blocker', 'blocked'],
+      });
+
+      const blockedUserIds = new Set(
+        blockRelations.map((r) =>
+          r.blocker.id === userId ? r.blocked.id : r.blocker.id,
+        ),
+      );
+
       const messages = await this.messagesRepository
         .createQueryBuilder('msg')
         .leftJoinAndSelect('msg.item', 'item')
@@ -510,6 +683,7 @@ export class MessagesService {
         const otherUser = msg.sender.id === userId ? msg.receiver : msg.sender;
 
         if (!otherUser) continue;
+        if (blockedUserIds.has(otherUser.id)) continue;
 
         // Benzersiz anahtar: Sadece Karşıdaki Kullanıcı ID
         const key = otherUser.id;
@@ -526,7 +700,11 @@ export class MessagesService {
             otherUser: {
               id: otherUser.id,
               fullName: otherUser.fullName,
-              email: otherUser.email,
+              avatarUrl: otherUser.avatarUrl,
+              trustScore: otherUser.trustScore,
+              isVerifiedAccount: Boolean(
+                otherUser.isEmailVerified && otherUser.isPhoneVerified,
+              ),
             },
           });
         }
@@ -580,7 +758,7 @@ export class MessagesService {
               };
             }
           }
-          return {
+          return this.sanitizeMessageForClient({
             ...msg,
             photoUrl:
               msg.tradeMediaUrls?.[0] ||
@@ -591,8 +769,10 @@ export class MessagesService {
               msg.tradeMediaUrls ||
               (msg.tradeMediaUrl ? [msg.tradeMediaUrl] : []),
             offeredItem: offeredItemData,
-            otherUser: msg.sender?.id === userId ? msg.receiver : msg.sender,
-          };
+            otherUser: this.sanitizeUserForClient(
+              msg.sender?.id === userId ? msg.receiver : msg.sender,
+            ),
+          });
         }),
       );
 
@@ -641,7 +821,7 @@ export class MessagesService {
       }
     }
 
-    return {
+    return this.sanitizeMessageForClient({
       ...offer,
       photoUrl:
         offer.tradeMediaUrls?.[0] ||
@@ -652,7 +832,7 @@ export class MessagesService {
         offer.tradeMediaUrls ||
         (offer.tradeMediaUrl ? [offer.tradeMediaUrl] : []),
       offeredItem: offeredItemData,
-    };
+    });
   }
 
   // Takasa özel mesajları getir
@@ -669,11 +849,13 @@ export class MessagesService {
       throw new ForbiddenException('Bu takasa erişim izniniz yok.');
     }
 
-    return this.messagesRepository.find({
+    const messages = await this.messagesRepository.find({
       where: { tradeOfferId, isDeleted: false },
       relations: ['sender', 'receiver', 'item'],
       order: { createdAt: 'ASC' },
     });
+
+    return messages.map((msg) => this.sanitizeMessageForClient(msg));
   }
 
   // Tek mesajı sil (soft-delete)
@@ -702,6 +884,8 @@ export class MessagesService {
     tradeOfferId: string,
     senderId: string,
     content: string,
+    attachmentUrls?: string[],
+    attachmentType?: string,
   ): Promise<Message> {
     const offer = await this.messagesRepository.findOne({
       where: { id: tradeOfferId, isTradeOffer: true },
@@ -717,14 +901,28 @@ export class MessagesService {
 
     if (!receiverId) throw new BadRequestException('Alıcı bulunamadı.');
 
+    if (await this.isBlockedBetween(senderId, receiverId)) {
+      throw new ForbiddenException('Bu kullanıcıya mesaj gönderemezsiniz');
+    }
+
+    const normalizedAttachments = Array.isArray(attachmentUrls)
+      ? attachmentUrls.filter(Boolean)
+      : null;
+
     const message = this.messagesRepository.create({
       item: offer.item ? { id: offer.item.id } : null,
       sender: { id: senderId },
       receiver: { id: receiverId },
-      content,
+      content: content || '',
       isRead: false,
       isTradeOffer: false,
       tradeOfferId,
+      attachmentUrls: normalizedAttachments?.length
+        ? normalizedAttachments
+        : null,
+      attachmentType: normalizedAttachments?.length
+        ? attachmentType || null
+        : null,
     });
 
     const saved = await this.messagesRepository.save(message);
@@ -735,12 +933,12 @@ export class MessagesService {
 
     if (result?.receiver) {
       this.messagesGateway.notifyNewMessage(result.receiver.id, {
-        ...result,
+        ...this.sanitizeMessageForClient(result),
         tradeOfferId,
       });
     }
 
-    return result!;
+    return this.sanitizeMessageForClient(result!);
   }
 
   // Yeni: Toplam okunmamış mesaj sayısı (sistem mesajlarını hariç tut)
@@ -875,6 +1073,7 @@ export class MessagesService {
       }
       return {
         ...offer,
+        sender: this.sanitizeUserForClient(offer.sender),
         photoUrl:
           offer.tradeMediaUrls?.[0] ||
           offer.tradeMediaUrl ||

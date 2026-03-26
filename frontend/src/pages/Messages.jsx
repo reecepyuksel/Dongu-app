@@ -14,13 +14,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import api from '../api';
-import ChatModal from '../components/ChatModal';
 import { io } from 'socket.io-client';
 
 const Messages = () => {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedChat, setSelectedChat] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const { isAuthenticated, loading: authLoading } = useAuth();
   const { showToast } = useToast();
@@ -66,16 +64,10 @@ const Messages = () => {
     const partnerId = searchParams.get('partnerId');
     if (!partnerId) return;
 
-    setSelectedChat({
-      conversationId: `${partnerId}-${searchParams.get('itemId') || 'direct'}`,
-      itemId: searchParams.get('itemId') || 'direct',
-      itemTitle: searchParams.get('itemTitle') || 'Sohbet',
-      otherUser: {
-        id: partnerId,
-        fullName: searchParams.get('partnerName') || 'Kullanıcı',
-      },
-    });
-  }, [authLoading, isAuthenticated, searchParams]);
+    navigate(
+      `/chat?partnerId=${partnerId}&partnerName=${encodeURIComponent(searchParams.get('partnerName'))}&itemId=${searchParams.get('itemId') || 'direct'}&itemTitle=${encodeURIComponent(searchParams.get('itemTitle'))}`,
+    );
+  }, [authLoading, isAuthenticated, searchParams, navigate]);
 
   // Init Socket
   useEffect(() => {
@@ -256,7 +248,11 @@ const Messages = () => {
                 className="relative group"
               >
                 <button
-                  onClick={() => handleOpenChat(conv)}
+                  onClick={() =>
+                    navigate(
+                      `/chat?partnerId=${conv.otherUser.id}&partnerName=${encodeURIComponent(conv.otherUser.fullName)}&itemId=${conv.itemId}&itemTitle=${encodeURIComponent(conv.itemTitle)}`,
+                    )
+                  }
                   className={`w-full border hover:border-emerald-200 rounded-2xl p-5 flex items-center gap-4 transition-all text-left ${conv.unreadCount > 0 ? 'bg-blue-50/50 border-blue-200 hover:bg-blue-50' : 'bg-white hover:bg-slate-50 border-slate-100'}`}
                 >
                   {/* Eşya Resmi */}
@@ -285,9 +281,7 @@ const Messages = () => {
                       <h3
                         className={`truncate text-sm ${conv.unreadCount > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}
                       >
-                        {conv.otherUser?.fullName ||
-                          conv.otherUser?.email ||
-                          'Kullanıcı'}
+                        {conv.otherUser?.fullName || 'Kullanıcı'}
                       </h3>
                       <span className="text-xs text-slate-400 flex items-center gap-1 flex-shrink-0 ml-2">
                         <Clock className="w-3 h-3" />
@@ -331,24 +325,6 @@ const Messages = () => {
             ))}
           </AnimatePresence>
         </div>
-      )}
-
-      {/* Chat Modal */}
-      {selectedChat && (
-        <ChatModal
-          isOpen={!!selectedChat}
-          onClose={() => {
-            setSelectedChat(null);
-            if (searchParams.get('partnerId')) {
-              navigate('/messages', { replace: true });
-            }
-            fetchConversations(false);
-          }}
-          itemId={selectedChat.itemId}
-          itemTitle={selectedChat.itemTitle}
-          partnerName={selectedChat.otherUser?.fullName}
-          partnerId={selectedChat.otherUser?.id}
-        />
       )}
     </div>
   );

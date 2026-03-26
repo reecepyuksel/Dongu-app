@@ -1,6 +1,7 @@
 import React from 'react';
-import { Heart, Globe, Recycle, Users } from 'lucide-react';
+import { Heart, Globe, Recycle, Users, PackageOpen, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 
 const About = () => {
     return (
@@ -12,10 +13,16 @@ const About = () => {
                     transition={{ duration: 0.6 }}
                     className="text-center mb-16"
                 >
-                    <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-6 font-[Outfit]">Hakkımızda</h1>
-                    <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                        Döngü, israfı önleyerek toplumsal dayanışmayı artırmak ve eşyalarımıza ikinci bir hayat şansı vererek sürdürülebilir bir gelecek inşa etmek amacıyla kurulmuş iyilik odaklı bir paylaşım platformudur.
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-800 mb-8 font-[Outfit]">Hakkımızda</h1>
+                    <p className="text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
+                        Döngü, israfı önleyerek <span className="text-emerald-600 font-bold">Dayanışma</span> kültürünü artırmak ve eşyalarımıza ikinci bir hayat şansı vererek sürdürülebilir bir gelecek inşa etmek amacıyla kurulmuş <span className="text-blue-600 font-bold">İhtiyaç Odaklı</span> bir platformdur.
                     </p>
+                    <div className="inline-block bg-white border border-emerald-100 rounded-3xl px-8 py-6 shadow-lg shadow-emerald-500/5 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-2 h-full bg-emerald-500"></div>
+                        <p className="text-xl md:text-2xl text-slate-800 font-black italic font-[Outfit]">
+                            "Döngü sadece bir pazar yeri değil, bir yardımlaşma köprüsüdür."
+                        </p>
+                    </div>
                 </motion.div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
@@ -61,6 +68,22 @@ const About = () => {
                     <p className="text-emerald-50 text-lg max-w-2xl mx-auto">
                         Hiçbir şeyin atılmadığı, herkesin ihtiyacına adil ve kolayca erişebildiği sürdürülebilir bir gelecek hayal ediyoruz. Birlikte, tüketim alışkanlıklarımızı "al ve at" modelinden "kullan ve paylaş" modeline dönüştürüyoruz.
                     </p>
+                </motion.div>
+
+                {/* CTA Buttons */}
+                <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5 }}
+                    className="mt-20 mb-10 flex flex-col sm:flex-row items-center justify-center gap-6"
+                >
+                  <Link to="/dashboard" className="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-1 text-center flex items-center justify-center gap-2 text-lg">
+                    <PackageOpen className="w-6 h-6" /> Hemen İlan Ver
+                  </Link>
+                  <Link to="/?tab=REQUESTING" className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-1 text-center flex items-center justify-center gap-2 text-lg">
+                    <Search className="w-6 h-6" /> Bir Şey Ara (Var mı?)
+                  </Link>
                 </motion.div>
             </div>
         </div>

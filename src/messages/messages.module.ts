@@ -8,10 +8,12 @@ import { MessagesController } from './messages.controller';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MessagesGateway } from './messages.gateway';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { BlockedUser } from './entities/blocked-user.entity';
+import { Report } from './entities/report.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Message, Item, User]),
+    TypeOrmModule.forFeature([Message, Item, User, BlockedUser, Report]),
     forwardRef(() => NotificationsModule),
     CloudinaryModule,
   ],

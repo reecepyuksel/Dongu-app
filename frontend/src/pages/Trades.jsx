@@ -451,7 +451,7 @@ const Trades = () => {
             onClick={closeLightbox}
           >
             <motion.div
-              className="relative w-full max-w-6xl"
+              className="relative flex flex-col max-w-[90vw] max-h-[85vh] min-w-0 min-h-0"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
@@ -488,11 +488,11 @@ const Trades = () => {
                 </>
               )}
 
-              <div className="rounded-2xl bg-black/30 border border-white/20 p-3">
+              <div className="rounded-2xl bg-black/30 border border-white/20 p-6 flex items-center justify-center flex-1 min-h-0 overflow-hidden">
                 <img
                   src={lightbox.images[lightbox.index]}
                   alt={lightbox.title || 'Takas görseli'}
-                  className="w-full max-h-[84vh] object-contain"
+                  className="w-auto h-auto max-w-full max-h-full object-contain"
                 />
               </div>
 

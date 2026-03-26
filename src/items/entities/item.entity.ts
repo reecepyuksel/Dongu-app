@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   ManyToOne,
   OneToMany,
+  JoinColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Giveaway } from '../../giveaways/entities/giveaway.entity';
 import { Favorite } from '../../favorites/favorite.entity';
+import { Community } from '../../communities/entities/community.entity';
 
 export enum ItemStatus {
   AVAILABLE = 'AVAILABLE',
@@ -31,6 +33,11 @@ export enum ItemSelectionType {
 export enum ShareType {
   FREE = 'donation',
   TRADE = 'exchange',
+}
+
+export enum ItemPostType {
+  OFFERING = 'OFFERING',
+  REQUESTING = 'REQUESTING',
 }
 
 @Entity()
@@ -81,6 +88,12 @@ export class Item {
   @Column({ type: 'text', nullable: true })
   tradePreferences: string;
 
+  @Column({ type: 'enum', enum: ItemPostType, default: ItemPostType.OFFERING })
+  postType: ItemPostType;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  expiresAt: Date;
+
   @ManyToOne(() => User, (user) => user.items)
   owner: User;
 
@@ -98,6 +111,12 @@ export class Item {
 
   @OneToMany(() => Favorite, (favorite) => favorite.item)
   favorites: Favorite[];
+
+  @ManyToOne(() => Community, (community) => community.items, {
+    nullable: true,
+  })
+  @JoinColumn({ name: 'community_id' })
+  community: Community;
 
   @Column({ type: 'timestamptz', nullable: true })
   drawDate: Date;
