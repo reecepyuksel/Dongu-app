@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Clock, Users, MapPin, ImageOff, Heart } from 'lucide-react';
+import { Clock, ImageOff, Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
 export const ItemCard = ({
@@ -31,20 +31,38 @@ export const ItemCard = ({
     status === 'DRAW_PENDING' ||
     (drawDate && new Date(drawDate) < new Date());
 
+  const parsedDrawDate = drawDate ? new Date(drawDate) : null;
+  const hasValidDrawDate =
+    parsedDrawDate && !Number.isNaN(parsedDrawDate.getTime());
+
   // Time ago string
-  const timeAgoStr = drawDate
-    ? formatDistanceToNow(new Date(drawDate), { locale: tr })
+  const timeAgoStr = hasValidDrawDate
+    ? formatDistanceToNow(parsedDrawDate, { locale: tr })
     : '';
+  const dateLabel = hasValidDrawDate
+    ? format(parsedDrawDate, 'd MMM', { locale: tr })
+    : null;
+  const locationLabel =
+    city && district ? `${district}, ${city}` : district || city;
+  const cardStatCount = Number(participants) || 0;
+  const statLabel =
+    postType === 'REQUESTING'
+      ? null
+      : shareType === 'exchange'
+        ? `${cardStatCount} Teklif Verildi`
+        : cardStatCount > 0
+          ? `${cardStatCount} Kişi Katıldı`
+          : null;
 
   return (
     <motion.div
       whileHover={{ y: -5 }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`group relative rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 h-full flex flex-col ${postType === 'REQUESTING' ? 'bg-blue-50/40 border border-blue-200 shadow-[0_4px_16px_rgba(59,130,246,0.2)]' : 'bg-white border border-slate-100'}`}
+      className={`group relative h-full w-full overflow-hidden rounded-2xl shadow-sm transition-all duration-300 hover:shadow-xl flex flex-col ${postType === 'REQUESTING' ? 'bg-blue-50/40 border border-blue-200 shadow-[0_4px_16px_rgba(59,130,246,0.2)]' : 'bg-white border border-slate-100'}`}
     >
       {/* Image Container */}
-      <div className="relative h-64 aspect-[4/3] overflow-hidden bg-slate-100">
+      <div className="relative aspect-square overflow-hidden bg-slate-100 sm:aspect-[4/5]">
         {/* Skeleton placeholder */}
         {!imageLoaded && !imageError && (
           <div className="absolute inset-0 animate-pulse bg-slate-200" />
@@ -72,11 +90,11 @@ export const ItemCard = ({
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
 
         {/* Top Badges Area */}
-        <div className="absolute top-4 left-0 w-full px-4 flex justify-between items-start z-30 pointer-events-none">
+        <div className="absolute left-0 top-2 z-30 flex w-full items-start justify-between px-2.5 pointer-events-none sm:top-3 sm:px-3">
           {/* Left Badges */}
-          <div className="flex flex-col gap-2 items-start pointer-events-auto">
+          <div className="flex flex-col items-start gap-1.5 pointer-events-auto sm:gap-2">
             {postType === 'REQUESTING' && (
-              <div className="bg-blue-600 px-3.5 py-1.5 rounded-full text-xs font-black text-white shadow-sm border border-blue-500 tracking-wide">
+              <div className="rounded-full border border-blue-500 bg-blue-600 px-2.5 py-1 text-[10px] font-black tracking-wide text-white shadow-sm sm:px-3 sm:text-xs">
                 VAR MI
               </div>
             )}
@@ -86,7 +104,7 @@ export const ItemCard = ({
               shareType !== 'exchange' &&
               postType !== 'REQUESTING' && (
                 <div
-                  className={`bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold shadow-sm flex items-center gap-1 ${selectionType === 'manual' ? 'text-violet-700' : 'text-purple-700'}`}
+                  className={`flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold shadow-sm backdrop-blur-sm sm:px-3 sm:text-xs ${selectionType === 'manual' ? 'text-violet-700' : 'text-purple-700'}`}
                 >
                   <span>
                     {selectionType === 'manual' ? '👆 Döngüde' : '🎲 Çekiliş'}
@@ -96,15 +114,18 @@ export const ItemCard = ({
 
             {/* Trade Badge */}
             {shareType === 'exchange' && (
-              <div className="bg-emerald-600/95 backdrop-blur-sm px-3.5 py-1.5 rounded-full text-xs font-black text-white shadow-xl flex items-center gap-1 border border-emerald-400">
-                <span className="text-sm animate-pulse-slow">🔄</span> TAKAS
+              <div className="flex items-center gap-1 rounded-full border border-emerald-400 bg-emerald-600/95 px-2.5 py-1 text-[10px] font-black text-white shadow-xl backdrop-blur-sm sm:px-3 sm:text-xs">
+                <span className="text-xs sm:text-sm animate-pulse-slow">
+                  🔄
+                </span>{' '}
+                TAKAS
               </div>
             )}
 
             {/* Completed Badge */}
             {isEnded && (
-              <div className="bg-slate-800/80 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-semibold text-slate-200 flex items-center gap-1.5 shadow-sm border border-slate-600">
-                <Clock className="w-3 h-3 text-slate-400" />
+              <div className="flex items-center gap-1 rounded-full border border-slate-600 bg-slate-800/80 px-2.5 py-1 text-[10px] font-semibold text-slate-200 shadow-sm backdrop-blur-sm sm:text-xs">
+                <Clock className="h-3 w-3 text-slate-400" />
                 <span>
                   {timeAgoStr ? `${timeAgoStr} önce bitti` : 'Tamamlandı'}
                 </span>
@@ -121,10 +142,10 @@ export const ItemCard = ({
                 e.stopPropagation();
                 if (onFavoriteToggle) onFavoriteToggle(e);
               }}
-              className="p-2 rounded-full bg-white/80 backdrop-blur-md shadow-sm border border-white/50 hover:bg-white hover:scale-110 transition-all duration-200 group/fav"
+              className="rounded-full border border-white/50 bg-white/80 p-1.5 shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-110 hover:bg-white group/fav sm:p-2"
             >
               <Heart
-                className={`w-4 h-4 transition-colors duration-300 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-400 group-hover/fav:text-red-400'}`}
+                className={`h-4 w-4 transition-colors duration-300 ${isFavorited ? 'fill-red-500 text-red-500' : 'text-slate-400 group-hover/fav:text-red-400'}`}
               />
             </button>
           </div>
@@ -132,24 +153,8 @@ export const ItemCard = ({
 
         {/* Category Badge */}
         {category && (
-          <div className="absolute bottom-4 left-4 bg-black/40 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium text-white shadow-sm border border-white/20">
+          <div className="absolute bottom-2 left-2 rounded-full border border-white/20 bg-black/40 px-2.5 py-1 text-[10px] font-medium text-white shadow-sm backdrop-blur-md sm:bottom-3 sm:left-3 sm:text-xs">
             {category}
-          </div>
-        )}
-
-        {/* Location Badge */}
-        {(city || district) && (
-          <div
-            className={`absolute bottom-4 right-4 backdrop-blur-sm px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1 shadow-sm ${postType === 'REQUESTING' ? 'bg-blue-50/95 text-blue-700 border border-blue-200' : 'bg-white/90 text-slate-700'}`}
-          >
-            <MapPin
-              className={`w-3 h-3 ${postType === 'REQUESTING' ? 'text-blue-600' : 'text-emerald-600'}`}
-            />
-            <span>
-              {city && district
-                ? `${city} / ${district}`
-                : district || city || 'Konum belirtilmedi'}
-            </span>
           </div>
         )}
 
@@ -160,85 +165,69 @@ export const ItemCard = ({
       </div>
 
       {/* Content */}
-      <div className="p-5 flex-1 flex flex-col">
+      <div className="flex flex-1 flex-col p-2.5 sm:p-3">
         {deliveryMethods && deliveryMethods.length > 0 && (
-          <div className="flex gap-1.5 mb-2 flex-wrap">
+          <div className="mb-1.5 flex flex-wrap gap-1">
             {deliveryMethods.includes('mutual_agreement') && (
-              <span className="px-2 py-0.5 bg-violet-50 text-violet-600 rounded-md text-[10px] font-bold border border-violet-100">
+              <span className="rounded-md border border-violet-100 bg-violet-50 px-1.5 py-0.5 text-[9px] font-bold text-violet-600 sm:px-2 sm:text-[10px]">
                 💬 Anlaşmalı Teslim
               </span>
             )}
             {(deliveryMethods.includes('shipping') ||
               deliveryMethods.includes('shipping_buyer') ||
               deliveryMethods.includes('shipping_seller')) && (
-              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md text-[10px] font-bold border border-blue-100">
+              <span className="rounded-md border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold text-blue-600 sm:px-2 sm:text-[10px]">
                 📦 Kargo
               </span>
             )}
             {deliveryMethods.includes('pickup') && (
-              <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-md text-[10px] font-bold border border-emerald-100">
+              <span className="rounded-md border border-emerald-100 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 sm:px-2 sm:text-[10px]">
                 📍 Gel-Al
               </span>
             )}
           </div>
         )}
-        <h3 className="text-xl font-bold text-slate-800 mb-2 truncate font-[Outfit]">
+        <h3 className="mb-1.5 min-h-[2.5rem] line-clamp-2 font-[Outfit] text-sm font-semibold leading-5 text-slate-800">
           {title}
         </h3>
 
-        <div className="flex items-center justify-between mt-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
+        <div className="mb-2 flex items-center justify-between gap-2 text-[10px] text-gray-400">
+          <span className="truncate text-gray-400">
+            {locationLabel || 'Konum belirtilmedi'}
+          </span>
+          {dateLabel && (
+            <span className="shrink-0 text-gray-400">{dateLabel}</span>
+          )}
+        </div>
+
+        <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="h-5 w-5 flex-shrink-0 overflow-hidden rounded-full bg-slate-200">
               {ownerAvatar ? (
                 <img
                   src={ownerAvatar}
                   alt="Owner"
-                  className="w-full h-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 text-xs font-bold">
+                <div className="flex h-full w-full items-center justify-center bg-emerald-100 text-[9px] font-bold text-emerald-600">
                   {ownerName ? ownerName.charAt(0).toUpperCase() : 'U'}
                 </div>
               )}
             </div>
             {ownerName && (
-              <span className="text-[11px] font-bold text-slate-700">
+              <span className="truncate text-[10px] text-gray-400">
                 {ownerName}
               </span>
             )}
           </div>
 
-          {shareType !== 'exchange' && (
-            <div className="flex items-center gap-1 text-slate-500 text-sm">
-              <Users className="w-4 h-4 text-emerald-500" />
-              <span className="font-medium text-slate-700">{participants}</span>
-              <span className="text-xs">katılımcı</span>
-            </div>
+          {statLabel && (
+            <span className="shrink-0 text-[10px] font-medium text-gray-400">
+              {statLabel}
+            </span>
           )}
         </div>
-
-        {/* Progress Bar - only show when there are participants */}
-        {shareType !== 'exchange' && participants > 0 && (
-          <div className="mt-4 w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-emerald-500 rounded-full"
-              style={{ width: `${Math.min(participants * 5, 100)}%` }}
-            />
-          </div>
-        )}
-
-        {/* Card CTA */}
-        {postType === 'REQUESTING' ? (
-          <div className="mt-auto pt-3 text-right">
-            <span className="inline-flex items-center rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">
-              Bende Var!
-            </span>
-          </div>
-        ) : (
-          <p className="mt-auto pt-3 text-xs text-slate-400 group-hover:text-emerald-600 transition-colors font-medium text-right">
-            Detayları İncele →
-          </p>
-        )}
       </div>
     </motion.div>
   );
