@@ -1,346 +1,222 @@
-import React from 'react';
-import {
-  PackageOpen,
-  Sparkles,
-  Handshake,
-  ArrowRight,
-  Star,
-  Trophy,
-  Award,
-  Gem,
-  Search,
-} from 'lucide-react';
-import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 const HowItWorks = () => {
   const pointsTable = [
-    { action: 'Yeni İlan Yayınlamak', points: '+50', emoji: '📦' },
-    { action: 'Eşyayı Başarıyla Teslim Etmek', points: '+150', emoji: '🤝' },
-    { action: 'Eşya Teslim Almak', points: '+20', emoji: '📬' },
-    { action: 'Başarılı Takas (Her iki tarafa)', points: '+100', emoji: '🔄' },
-    { action: '"Var mı?" İhtiyacını Gidermek', points: '+200', emoji: '💖' },
-    { action: 'Profilini Tamamlamak', points: '+30', emoji: '👤' },
-    { action: 'İlk 5 Başarılı Döngü', points: '+200 Bonus', emoji: '🎯' },
+    { action: 'Yeni ilan yayınlamak', points: '+50' },
+    { action: 'Eşyayı başarıyla teslim etmek', points: '+150' },
+    { action: 'Eşya teslim almak', points: '+20' },
+    { action: 'Başarılı takas', points: '+100' },
+    { action: 'Var mı ihtiyacını gidermek', points: '+200' },
+    { action: 'Profilini tamamlamak', points: '+30' },
+    { action: 'İlk 5 başarılı döngü', points: '+200 Bonus' },
   ];
 
   const ranks = [
     {
       name: 'Yeni Paylaşımcı',
-      range: '0 – 250 Puan',
-      emoji: '🥉',
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
-      text: 'text-amber-800',
+      range: '0 - 250 Puan',
+      containerClass: 'bg-white p-6 rounded-2xl text-center shadow-sm hover:shadow-md transition-shadow',
+      iconContainer: 'w-16 h-16 bg-slate-100 rounded-full mx-auto mb-4 flex items-center justify-center',
+      iconStyle: 'material-symbols-outlined text-slate-400 text-3xl',
+      icon: 'child_care',
+      textName: 'block font-bold text-slate-700',
+      textRange: 'text-xs text-slate-400'
     },
     {
       name: 'İyilik Yolcusu',
-      range: '251 – 750 Puan',
-      emoji: '🥈',
-      bg: 'bg-slate-50',
-      border: 'border-slate-200',
-      text: 'text-slate-700',
+      range: '251 - 750 Puan',
+      containerClass: 'bg-white p-6 rounded-2xl text-center shadow-sm hover:shadow-md transition-shadow',
+      iconContainer: 'w-16 h-16 bg-[#cde5d8] rounded-full mx-auto mb-4 flex items-center justify-center',
+      iconStyle: 'material-symbols-outlined text-[#4d6359] text-3xl',
+      icon: 'hiking',
+      textName: 'block font-bold text-[#4d6359]',
+      textRange: 'text-xs text-slate-400'
     },
     {
       name: 'İyilik Elçisi',
-      range: '751 – 2000 Puan',
-      emoji: '🥇',
-      bg: 'bg-yellow-50',
-      border: 'border-yellow-200',
-      text: 'text-yellow-800',
+      range: '751 - 2000 Puan',
+      containerClass: 'bg-white p-6 rounded-2xl text-center shadow-sm hover:shadow-md transition-shadow border-2 border-[#b2cabd]/20',
+      iconContainer: 'w-16 h-16 bg-[#b2cabd]/20 rounded-full mx-auto mb-4 flex items-center justify-center',
+      iconStyle: 'material-symbols-outlined text-[#b2cabd] text-3xl',
+      icon: 'diversity_1',
+      textName: 'block font-bold text-[#b2cabd]',
+      textRange: 'text-xs text-slate-400'
     },
     {
       name: 'Döngü Ustası',
       range: '2000+ Puan',
-      emoji: '💎',
-      bg: 'bg-emerald-50',
-      border: 'border-emerald-200',
-      text: 'text-emerald-800',
+      containerClass: 'bg-gradient-to-br from-[#05162b] to-[#1b2b41] p-6 rounded-2xl text-center shadow-lg transform scale-105',
+      iconContainer: 'w-16 h-16 bg-white/10 rounded-full mx-auto mb-4 flex items-center justify-center',
+      iconStyle: 'material-symbols-outlined text-white text-3xl',
+      icon: 'workspace_premium',
+      fill: true,
+      textName: 'block font-bold text-white',
+      textRange: 'text-xs text-white/60'
     },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 py-20 px-6">
-      <div className="max-w-5xl mx-auto">
-        <div className="text-center mb-16">
-          <motion.h1
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-4xl md:text-5xl font-black text-slate-800 mb-4 font-[Outfit]"
-          >
-            Sistem Nasıl Çalışır?
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-lg text-slate-500 max-w-2xl mx-auto"
-          >
-            Eşyalarını paylaşmak veya yeni bir eşya edinmek Döngü ile çok basit!
-            Sadece 3 adımda iyiliği çevremize yayalım.
-          </motion.p>
+    <div className="flex max-w-7xl mx-auto pt-24 pb-24 md:pb-8 text-[#191c1e]">
+      {/* SideNavBar */}
+      <aside className="hidden lg:flex flex-col p-4 space-y-2 h-[calc(100vh-6rem)] w-64 bg-[#f7f9fb] sticky top-24">
+        <div className="px-4 py-6">
+          <h3 className="font-[Manrope] font-black text-[#1b2b41] text-xl">Döngü Rehberi</h3>
+          <p className="text-slate-500 text-xs">Güven & İyilik</p>
         </div>
-
-        {/* Adımlar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-          <div className="hidden md:block absolute top-[4.5rem] left-1/6 right-1/6 h-0.5 bg-slate-200 w-2/3 mx-auto z-0" />
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="relative z-10 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
+        <nav className="space-y-1">
+          <a className="flex items-center space-x-3 px-4 py-3 bg-white text-[#1b2b41] font-bold rounded-xl shadow-sm hover:translate-x-1 transition-transform duration-200 cursor-pointer active:opacity-80">
+            <span className="material-symbols-outlined">help_center</span>
+            <span className="font-[Manrope] text-base">Nasıl Çalışır</span>
+          </a>
+          <a className="flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-[#f2f4f6] rounded-xl hover:translate-x-1 transition-transform duration-200 cursor-pointer active:opacity-80">
+            <span className="material-symbols-outlined">sync_alt</span>
+            <span className="font-[Manrope] text-base">Takas Döngüsü</span>
+          </a>
+          <a className="flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-[#f2f4f6] rounded-xl hover:translate-x-1 transition-transform duration-200 cursor-pointer active:opacity-80">
+            <span className="material-symbols-outlined">volunteer_activism</span>
+            <span className="font-[Manrope] text-base">İyilik Puanlaması</span>
+          </a>
+          <a className="flex items-center space-x-3 px-4 py-3 text-slate-600 hover:bg-[#f2f4f6] rounded-xl hover:translate-x-1 transition-transform duration-200 cursor-pointer active:opacity-80">
+            <span className="material-symbols-outlined">workspace_premium</span>
+            <span className="font-[Manrope] text-base">Unvanlar</span>
+          </a>
+        </nav>
+        <div className="mt-auto p-4">
+          <Link
+            to="/dashboard"
+            className="flex w-full justify-center items-center py-3 bg-gradient-to-br from-[#05162b] to-[#1b2b41] text-white rounded-full font-semibold shadow-lg hover:opacity-90 transition-opacity"
           >
-            <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform">
-              <PackageOpen className="w-10 h-10" />
-            </div>
-            <div className="bg-emerald-100 text-emerald-700 font-bold px-3 py-1 rounded-full text-xs mb-4">
-              Model 1
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3 font-[Outfit]">
-              Paylaş
-            </h3>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              Kullanmadığın ama başkasının işine yarayacak eşyalarını sisteme yükle. Doğaya katkı sağlarken iyilik puanları kazan ve ihtiyacı olanları sevindir!
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="relative z-10 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
-          >
-            <div className="w-20 h-20 bg-amber-50 text-amber-500 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform">
-              <Handshake className="w-10 h-10" />
-            </div>
-            <div className="bg-amber-100 text-amber-700 font-bold px-3 py-1 rounded-full text-xs mb-4">
-              Model 2
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3 font-[Outfit]">
-              Takasla
-            </h3>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              Kendi eşyanla başkasının eşyasını takas et. İki tarafın da kazandığı, karşılıklı fayda sağlayan adil değişimlerle döngüye aktif olarak katıl.
-            </p>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="relative z-10 bg-white p-8 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
-          >
-            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform">
-              <Search className="w-10 h-10" />
-            </div>
-            <div className="bg-blue-100 text-blue-700 font-bold px-3 py-1 rounded-full text-xs mb-4">
-              Model 3
-            </div>
-            <h3 className="text-2xl font-bold text-slate-800 mb-3 font-[Outfit]">
-              Ara (Var mı?)
-            </h3>
-            <p className="text-slate-600 text-sm leading-relaxed">
-              Aradığın bir eşyayı topluluğa sor, elinde olanlar sana ulaşsın. İhtiyaçlarını paylaş, iyilik paylaştıkça büyüsün!
-            </p>
-          </motion.div>
+            Paylaşmaya Başla
+          </Link>
         </div>
+      </aside>
 
-        {/* ─── TAKAS DÖNGÜSÜ ─── */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mt-20 border-t border-slate-200 pt-20"
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-black text-emerald-800 font-[Outfit] mb-3 flex items-center justify-center gap-3">
-              <span className="text-4xl">🔄</span> Takas Döngüsü Nasıl İşler?
-            </h2>
-            <p className="text-slate-500 text-lg max-w-xl mx-auto">
-              Vitrin'deki eşyaları takas etmek veya kendi eşyanızla yeni bir
-              teklif başlatmak çok kolay.
-            </p>
+      {/* Main Content */}
+      <main className="flex-1 px-6 lg:px-12 py-8 overflow-y-auto">
+        {/* Hero Section */}
+        <section className="mb-16 mt-4">
+          <div className="max-w-3xl">
+            <h1 className="text-4xl md:text-5xl font-[Manrope] font-extrabold text-[#05162b] mb-6 leading-tight">Sistem Nasıl Çalışır?</h1>
+            <p className="text-xl text-[#44474d] leading-relaxed">Eşyalarını paylaşmak veya yeni bir eşya edinmek Döngü ile çok basit! Sadece 3 adımda iyiliği çevremize yayalım.</p>
           </div>
+        </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative mt-10">
-            <div className="hidden md:block absolute top-[4.5rem] left-1/6 right-1/6 h-0.5 bg-emerald-200 w-2/3 mx-auto z-0" />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
-              className="relative z-10 bg-gradient-to-br from-white to-emerald-50/30 p-8 rounded-3xl shadow-sm border border-emerald-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
-            >
-              <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform text-3xl">
-                🤝
-              </div>
-              <div className="bg-emerald-200 text-emerald-800 font-bold px-3 py-1 rounded-full text-xs mb-4">
-                Takas Adım 1
-              </div>
-              <h3 className="text-xl font-bold text-emerald-900 mb-3 font-[Outfit]">
-                Teklif Ver
-              </h3>
-              <p className="text-emerald-700/80 text-sm font-medium">
-                "Takaslık" rozeti olan eşyalara kendi eşyanı sun. Vitrininde
-                aktif ilan yoksa metin veya fotoğrafla desteklediğin bir teklif
-                de yapabilirsin.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.15 }}
-              className="relative z-10 bg-gradient-to-br from-white to-amber-50/30 p-8 rounded-3xl shadow-sm border border-amber-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
-            >
-              <div className="w-20 h-20 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform text-3xl">
-                ⏳
-              </div>
-              <div className="bg-amber-200 text-amber-800 font-bold px-3 py-1 rounded-full text-xs mb-4">
-                Takas Adım 2
-              </div>
-              <h3 className="text-xl font-bold text-amber-900 mb-3 font-[Outfit]">
-                Onay Bekle
-              </h3>
-              <p className="text-amber-800/80 text-sm font-medium">
-                Gönderdiğin teklif mesaj kutusuna düşer. Karşı taraf teklifi
-                değerlendirir; dilerse pazarlık yapabilir, reddedebilir veya
-                onaylayabilir.
-              </p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-              className="relative z-10 bg-gradient-to-br from-white to-blue-50/30 p-8 rounded-3xl shadow-sm border border-blue-100 flex flex-col items-center text-center group hover:-translate-y-2 transition-transform duration-300"
-            >
-              <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-6 shadow-sm border-4 border-white group-hover:scale-110 transition-transform text-3xl">
-                📦
-              </div>
-              <div className="bg-blue-200 text-blue-800 font-bold px-3 py-1 rounded-full text-xs mb-4">
-                Takas Adım 3
-              </div>
-              <h3 className="text-xl font-bold text-blue-900 mb-3 font-[Outfit]">
-                Güvenle Takas Et
-              </h3>
-              <p className="text-blue-800/80 text-sm font-medium">
-                Anlaşma sağlandığında eşyalarınızı belirlediğiniz yöntemle
-                güvenle takas edin. Tamamlanan her takasta +100 iyilik puanı
-                kazanılır!
-              </p>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* ─── İYİLİK REHBERİ ─── */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-          className="mt-24"
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-black text-slate-800 font-[Outfit] mb-3">
-              İyilik Rehberi
-            </h2>
-            <p className="text-slate-500 text-lg max-w-xl mx-auto">
-              Paylaştıkça puan kazan, seviye atla ve topluluğun yıldızı ol!
-            </p>
-          </div>
-
-          {/* Puan Tablosu */}
-          <div
-            id="puan-tablosu"
-            className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-12 scroll-mt-24"
-          >
-            <div className="px-8 py-5 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-lg font-bold text-slate-800 font-[Outfit] flex justify-center items-center gap-2">
-                <Star className="w-5 h-5 text-amber-500" /> Puanlama Tablosu
-              </h3>
+        {/* 3 Main Steps (Bento Grid) */}
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-20">
+          <div className="bg-[#ffffff] p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,30,0.06)] hover:scale-[1.02] transition-transform duration-300">
+            <div className="w-14 h-14 bg-[#cde5d8] flex items-center justify-center rounded-2xl mb-8">
+              <span className="material-symbols-outlined text-[#4d6359] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>volunteer_activism</span>
             </div>
-            <div className="divide-y divide-slate-50">
-              {pointsTable.map((item, idx) => (
-                <motion.div
-                  key={idx}
-                  initial={{ opacity: 0, x: -10 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: idx * 0.1 }}
-                  className="px-8 py-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="text-2xl">{item.emoji}</span>
-                    <span className="font-semibold text-slate-700">
-                      {item.action}
-                    </span>
-                  </div>
-                  <span className="text-emerald-600 font-extrabold text-lg font-[Outfit]">
-                    {item.points}
-                  </span>
-                </motion.div>
+            <h3 className="font-[Manrope] text-2xl font-bold text-[#05162b] mb-4">Paylaş</h3>
+            <p className="text-[#44474d] leading-relaxed text-sm">Kullanmadığın ama başkasının işine yarayacak eşyalarını sisteme yükle. Doğaya katkı sağlarken iyilik puanları kazan ve ihtiyacı olanları sevindir!</p>
+          </div>
+
+          <div className="bg-[#ffffff] p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,30,0.06)] hover:scale-[1.02] transition-transform duration-300">
+            <div className="w-14 h-14 bg-[#cde5d8] flex items-center justify-center rounded-2xl mb-8">
+              <span className="material-symbols-outlined text-[#4d6359] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>swap_horizontal_circle</span>
+            </div>
+            <h3 className="font-[Manrope] text-2xl font-bold text-[#05162b] mb-4">Takasla</h3>
+            <p className="text-[#44474d] leading-relaxed text-sm">Kendi eşyanla başkasının eşyasını takas et. İki tarafın da kazandığı, karşılıklı fayda sağlayan adil değişimlerle döngüye aktif olarak katıl.</p>
+          </div>
+
+          <div className="bg-[#ffffff] p-8 rounded-2xl shadow-[0px_12px_32px_rgba(25,28,30,0.06)] hover:scale-[1.02] transition-transform duration-300">
+            <div className="w-14 h-14 bg-[#cde5d8] flex items-center justify-center rounded-2xl mb-8">
+              <span className="material-symbols-outlined text-[#4d6359] text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>search_check</span>
+            </div>
+            <h3 className="font-[Manrope] text-2xl font-bold text-[#05162b] mb-4">Ara (Var mı?)</h3>
+            <p className="text-[#44474d] leading-relaxed text-sm">Aradığın bir eşyayı topluluğa sor, elinde olanlar sana ulaşsın. İhtiyaçlarını paylaş, iyilik paylaştıkça büyüsün!</p>
+          </div>
+        </section>
+
+        {/* Takas Döngüsü Section */}
+        <section className="bg-[#1b2b41] text-white p-10 md:p-16 rounded-3xl mb-20 relative overflow-hidden">
+          <div className="relative z-10">
+            <h2 className="font-[Manrope] text-3xl font-bold mb-12">Takas Döngüsü Nasıl İşler?</h2>
+            <div className="flex flex-col md:flex-row justify-between gap-12 relative">
+              {/* Horizontal Line for Desktop */}
+              <div className="hidden md:block absolute top-10 left-10 right-10 h-0.5 bg-[#8292ad] opacity-30"></div>
+              
+              <div className="flex-1 relative z-20">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-[#1b2b41] font-black text-2xl mb-6 shadow-xl">1</div>
+                <h4 className="font-[Manrope] text-xl font-bold mb-3">Teklif Ver</h4>
+                <p className="text-[#b7c7e4] text-sm">"Takaslık" rozeti olan eşyalara kendi eşyanı sun.</p>
+              </div>
+              
+              <div className="flex-1 relative z-20">
+                <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center text-[#1b2b41] font-black text-2xl mb-6 shadow-xl">2</div>
+                <h4 className="font-[Manrope] text-xl font-bold mb-3">Onay Bekle</h4>
+                <p className="text-[#b7c7e4] text-sm">Gönderdiğin teklif mesaj kutusuna düşer.</p>
+              </div>
+              
+              <div className="flex-1 relative z-20">
+                <div className="w-20 h-20 bg-[#b2cabd] rounded-full flex items-center justify-center text-[#1b2b41] font-black text-2xl mb-6 shadow-xl">3</div>
+                <h4 className="font-[Manrope] text-xl font-bold mb-3">Güvenle Takas Et</h4>
+                <p className="text-[#b7c7e4] text-sm">Anlaşma sağlandığında eşyalarınızı belirlediğiniz yöntemle güvenle takas edin.</p>
+              </div>
+            </div>
+          </div>
+          {/* Abstract BG Texture */}
+          <div className="absolute -right-20 -bottom-20 w-96 h-96 bg-[#b2cabd]/10 rounded-full blur-3xl pointer-events-none"></div>
+        </section>
+
+        {/* İyilik Rehberi Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-20">
+          {/* Scoring Table */}
+          <div className="bg-[#f2f4f6] p-8 rounded-2xl">
+            <h2 className="font-[Manrope] text-2xl font-bold text-[#05162b] mb-8 flex items-center gap-3">
+              <span className="material-symbols-outlined text-[#b2cabd]">stars</span>
+              İyilik Rehberi - Puanlama
+            </h2>
+            <div className="space-y-4">
+              {pointsTable.map((row, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-xl">
+                  <span className="font-medium text-sm">{row.action}</span>
+                  <span className="text-[#4d6359] font-bold">{row.points}</span>
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Unvan Kartları */}
-          <div className="text-center mb-8">
-            <h3 className="text-2xl font-bold text-slate-800 font-[Outfit] flex items-center justify-center gap-2">
-              <Trophy className="w-6 h-6 text-amber-500" /> Unvan Seviyeleri
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {ranks.map((rank, idx) => (
-              <motion.div
-                key={idx}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: idx * 0.15 }}
-                className={`${rank.bg} ${rank.border} border rounded-2xl p-6 text-center hover:-translate-y-2 transition-transform duration-300 group`}
-              >
-                <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">
-                  {rank.emoji}
+          {/* Unvan Seviyeleri (Badges) */}
+          <div>
+            <h2 className="font-[Manrope] text-2xl font-bold text-[#05162b] mb-8">Unvan Seviyeleri</h2>
+            <div className="grid grid-cols-2 gap-4">
+              {ranks.map((rank, idx) => (
+                <div key={idx} className={rank.containerClass}>
+                  <div className={rank.iconContainer}>
+                    <span 
+                      className={rank.iconStyle} 
+                      style={rank.fill ? { fontVariationSettings: "'FILL' 1" } : {}}
+                    >
+                      {rank.icon}
+                    </span>
+                  </div>
+                  <span className={rank.textName}>{rank.name}</span>
+                  <span className={rank.textRange}>{rank.range}</span>
                 </div>
-                <h4
-                  className={`text-lg font-extrabold ${rank.text} font-[Outfit] mb-1`}
-                >
-                  {rank.name}
-                </h4>
-                <p className="text-sm text-slate-500 font-semibold">
-                  {rank.range}
-                </p>
-              </motion.div>
-            ))}
+              ))}
+            </div>
           </div>
-        </motion.div>
+        </section>
 
-        {/* CTA Buttons */}
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="mt-24 mb-10 flex flex-col sm:flex-row items-center justify-center gap-6"
-        >
-          <Link to="/dashboard" className="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-1 text-center flex items-center justify-center gap-2 text-lg">
-            <PackageOpen className="w-6 h-6" /> Hemen İlan Ver
+        {/* Footer Actions */}
+        <section className="flex flex-col md:flex-row items-center justify-center gap-6 py-12 border-t border-[#c4c6cd]/20">
+          <Link
+            to="/dashboard"
+            className="px-10 py-5 bg-gradient-to-br from-[#05162b] to-[#1b2b41] text-white rounded-full font-bold text-lg shadow-xl flex items-center gap-3 hover:scale-105 active:scale-95 transition-all"
+          >
+            <span className="material-symbols-outlined">add_circle</span>
+            Hemen İlan Ver
           </Link>
-          <Link to="/?tab=REQUESTING" className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-1 text-center flex items-center justify-center gap-2 text-lg">
-            <Search className="w-6 h-6" /> Bir Şey Ara (Var mı?)
+          <Link
+            to="/?tab=REQUESTING"
+            className="px-10 py-5 bg-[#cde5d8] text-[#364b41] rounded-full font-bold text-lg flex items-center gap-3 hover:bg-[#b4ccbf] transition-colors"
+          >
+            <span className="material-symbols-outlined">search</span>
+            Bir Şey Ara (Var mı?)
           </Link>
-        </motion.div>
-      </div>
+        </section>
+      </main>
     </div>
   );
 };

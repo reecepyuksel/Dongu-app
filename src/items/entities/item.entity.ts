@@ -6,6 +6,7 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Giveaway } from '../../giveaways/entities/giveaway.entity';
@@ -51,9 +52,11 @@ export class Item {
   @Column('text')
   description: string;
 
+  @Index()
   @Column({ nullable: true })
   city: string;
 
+  @Index()
   @Column({ nullable: true })
   district: string;
 
@@ -66,9 +69,11 @@ export class Item {
   @Column('text', { array: true, default: [] })
   images: string[];
 
+  @Index()
   @Column({ nullable: true }) // Kategori ekledik, eski veriler için nullable
   category: string;
 
+  @Index()
   @Column({ type: 'enum', enum: ItemStatus, default: ItemStatus.AVAILABLE })
   status: ItemStatus;
 
@@ -82,12 +87,14 @@ export class Item {
   })
   selectionType: ItemSelectionType;
 
+  @Index()
   @Column({ type: 'enum', enum: ShareType, default: ShareType.FREE })
   shareType: ShareType;
 
   @Column({ type: 'text', nullable: true })
   tradePreferences: string;
 
+  @Index()
   @Column({ type: 'enum', enum: ItemPostType, default: ItemPostType.OFFERING })
   postType: ItemPostType;
 

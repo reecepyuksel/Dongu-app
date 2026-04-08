@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -38,11 +38,11 @@ const NAVBAR_H = 64; // px — must match the sticky Navbar h-16
 const ConvSkeleton = () => (
   <div className="space-y-1 p-3">
     {[1, 2, 3, 4, 5].map((i) => (
-      <div key={i} className="flex items-center gap-3 p-3 rounded-xl">
-        <div className="w-12 h-12 rounded-xl bg-slate-200 animate-pulse shrink-0" />
+      <div key={i} className="flex items-center gap-3 rounded-xl p-3">
+        <div className="h-12 w-12 animate-pulse rounded-xl bg-[#e6e8ea] shrink-0" />
         <div className="flex-1 space-y-2">
-          <div className="h-3.5 bg-slate-200 rounded-lg animate-pulse w-3/4" />
-          <div className="h-3 bg-slate-100 rounded-lg animate-pulse w-1/2" />
+          <div className="h-3.5 w-3/4 animate-pulse rounded-lg bg-[#e6e8ea]" />
+          <div className="h-3 w-1/2 animate-pulse rounded-lg bg-[#f2f4f6]" />
         </div>
       </div>
     ))}
@@ -81,12 +81,12 @@ const MsgSkeleton = () => (
 /* ── Empty state (no chat selected) ─ */
 const EmptyState = () => (
   <div className="flex flex-col items-center justify-center h-full gap-5 select-none px-8">
-    <div className="w-24 h-24 rounded-full bg-emerald-50 flex items-center justify-center border-4 border-emerald-100">
-      <MessageCircle className="w-10 h-10 text-emerald-400" />
+    <div className="flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#d0e8db] bg-[#f2f8f4]">
+      <MessageCircle className="h-10 w-10 text-[#4d6359]" />
     </div>
     <div className="text-center">
-      <p className="text-xl font-bold text-slate-700 mb-1">Bir sohbet seçin</p>
-      <p className="text-sm text-slate-400 max-w-xs leading-relaxed">
+      <p className="mb-1 text-xl font-bold text-[#05162b]">Bir sohbet seçin</p>
+      <p className="max-w-xs text-sm leading-relaxed text-[#75777d]">
         Soldan bir konuşmaya tıkla veya bir ilan sayfasından mesaj göndererek
         başla.
       </p>
@@ -648,7 +648,7 @@ export default function Chat() {
             )}
             <button
               onClick={() => navigate(`/items/${itemId}`)}
-              className="w-full py-2.5 px-4 bg-white border border-slate-200 hover:border-slate-300 text-slate-600 font-bold text-sm rounded-xl flex items-center justify-center gap-2 transition"
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-[#e0e3e5] bg-white px-4 py-3 text-sm font-bold text-[#05162b] transition hover:bg-[#f2f4f6]"
             >
               <ExternalLink className="w-4 h-4" /> İlanı Görüntüle
             </button>
@@ -662,10 +662,10 @@ export default function Chat() {
   if (authLoading) {
     return (
       <div
-        className="flex items-center justify-center bg-gray-50"
+        className="flex items-center justify-center bg-[#f7f9fb]"
         style={{ height: `calc(100vh - ${NAVBAR_H}px)` }}
       >
-        <div className="animate-pulse text-emerald-600 font-medium">
+        <div className="animate-pulse font-medium text-[#4d6359]">
           Oturum kontrol ediliyor...
         </div>
       </div>
@@ -674,30 +674,29 @@ export default function Chat() {
 
   return (
     <div
-      className="flex bg-gray-50 overflow-hidden"
-      style={{ height: `calc(100vh - ${NAVBAR_H}px)` }}
+      className="mx-auto flex h-[calc(100vh-var(--navbar-height)-2rem)] w-full max-w-7xl overflow-hidden bg-white shadow-sm md:my-4 md:rounded-2xl"
+      style={{ '--navbar-height': `${NAVBAR_H}px` }}
     >
-      {/* ══════════════════════════ SIDEBAR ══════════════════════════ */}
+      {/* ══════════════════════════ SIDEBAR (CONVERSATIONS) ══════════════════════════ */}
       <aside
         className={`
-          flex-shrink-0 w-full md:w-[350px] bg-white border-r border-slate-200
-          flex flex-col overflow-hidden
+          flex w-full flex-col border-r border-[#e0e3e5]/50 bg-[#f7f9fb]/50 md:w-80 lg:w-96
           ${mobileShowChat ? 'hidden md:flex' : 'flex'}
         `}
       >
-        {/* Sidebar header */}
-        <div className="px-5 pt-5 pb-3 border-b border-slate-100 shrink-0">
-          <h1 className="text-xl font-black text-slate-900 font-[Outfit] mb-3">
+        {/* Header / Search */}
+        <div className="border-b border-[#e0e3e5]/50 p-4">
+          <h1 className="mb-3 font-[Manrope] text-2xl font-extrabold text-[#05162b]">
             Mesajlarım
           </h1>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#75777d]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Kişi veya ilan ara..."
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 transition"
+              className="w-full rounded-xl border border-[#e6e8ea] bg-[#f2f4f6] py-2.5 pl-9 pr-4 text-sm text-[#191c1e] outline-none transition focus:border-[#c4c6cd] focus:bg-white"
             />
           </div>
         </div>
@@ -741,12 +740,12 @@ export default function Chat() {
                     >
                       <button
                         onClick={() => openChat(conv)}
-                        className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all ${
+                        className={`w-full flex items-center gap-3 px-4 py-4 text-left transition-colors border-l-4 ${
                           isActive
-                            ? 'bg-emerald-50 border border-emerald-200'
+                            ? 'bg-[#cde5d8]/30 border-[#4d6359]'
                             : conv.unreadCount > 0
-                              ? 'bg-blue-50/60 border border-blue-100 hover:bg-blue-50'
-                              : 'hover:bg-slate-50 border border-transparent'
+                              ? 'bg-[#f2f4f6] border-transparent hover:bg-[#eceef0]'
+                              : 'hover:bg-[#eceef0] border-transparent'
                         }`}
                       >
                         {/* Avatar */}
@@ -772,27 +771,26 @@ export default function Chat() {
                         {/* Text */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between mb-0.5">
-                            <p
-                              className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-bold text-slate-900' : 'font-semibold text-slate-800'}`}
+                            <h3
+                              className={`text-sm truncate ${conv.unreadCount > 0 ? 'font-bold text-[#05162b]' : 'font-bold text-[#05162b]'}`}
                             >
                               {conv.otherUser?.fullName || 'Kullanıcı'}
-                            </p>
-                            <span className="text-[10px] text-slate-400 flex items-center gap-1 shrink-0 ml-2">
-                              <Clock className="w-2.5 h-2.5" />
+                            </h3>
+                            <span className="text-[10px] font-medium text-[#75777d] shrink-0 ml-2">
                               {formatDistanceToNow(
                                 new Date(conv.lastMessageAt),
                                 {
-                                  addSuffix: false,
+                                  addSuffix: true,
                                   locale: tr,
                                 },
                               )}
                             </span>
                           </div>
-                          <p className="text-[11px] text-emerald-600 font-medium truncate mb-0.5">
+                          <p className="text-xs font-semibold text-[#4d6359] truncate mb-1">
                             {conv.itemTitle}
                           </p>
                           <p
-                            className={`text-xs truncate ${conv.unreadCount > 0 ? 'text-slate-700 font-semibold' : 'text-slate-400'}`}
+                            className={`text-xs truncate ${conv.unreadCount > 0 ? 'text-[#191c1e] font-semibold' : 'text-[#44474d]'}`}
                           >
                             {conv.lastMessage}
                           </p>
@@ -828,57 +826,56 @@ export default function Chat() {
           <EmptyState />
         ) : (
           <>
-            {/* ── Chat Header ── */}
-            <header className="flex items-center gap-3 px-4 py-3 bg-white border-b border-slate-200 shrink-0 shadow-sm">
+            <header className="flex shrink-0 items-center gap-4 border-b border-[#e0e3e5]/50 bg-[#f2f4f6] px-6 py-3">
               {/* Back button (mobile) */}
               <button
                 onClick={() => setMobileShowChat(false)}
-                className="md:hidden p-2 -ml-1 rounded-lg hover:bg-slate-100 transition text-slate-500"
+                className="-ml-2 rounded-full p-2 text-[#75777d] transition hover:bg-[#e0e3e5] md:hidden"
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
 
               {/* Item thumbnail */}
-              <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+              <div className="w-12 h-12 shrink-0 overflow-hidden rounded-lg border border-[#e0e3e5]/50 bg-white shadow-sm">
                 {activeConv.itemImageUrl ? (
                   <img
                     src={activeConv.itemImageUrl}
                     alt={activeConv.itemTitle || 'İlan'}
-                    className="w-full h-full object-cover"
+                    className="h-full w-full object-cover"
                     onError={(e) => {
                       e.target.style.display = 'none';
                     }}
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-lg select-none">
+                  <div className="flex h-full w-full items-center justify-center text-lg select-none">
                     📦
                   </div>
                 )}
               </div>
 
               {/* Info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-bold text-sm text-slate-800 truncate">
+              <div className="min-w-0 flex-1">
+                <div className="mb-0.5 flex items-center gap-2">
+                  <h2 className="font-[Manrope] text-base font-bold leading-none text-[#05162b] truncate">
                     {activeConv.itemTitle || 'Sohbet'}
-                  </p>
+                  </h2>
                   {typeBadge && (
                     <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full border shrink-0 ${typeBadge.cls}`}
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${typeBadge.cls}`}
                     >
                       {typeBadge.label}
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 truncate mt-0.5">
-                  {activeConv.otherUser?.fullName || 'Kullanıcı'} ile sohbet
+                <p className="truncate text-xs font-medium text-[#44474d]">
+                  {activeConv.otherUser?.fullName || 'Kullanıcı'} ile sohbet ediyorsunuz
                 </p>
               </div>
 
               {/* Detail panel toggle */}
               <button
                 onClick={() => setDetailOpen(!detailOpen)}
-                className={`p-2 rounded-xl transition ${detailOpen ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-slate-100 text-slate-400'}`}
+                className={`rounded-xl p-2 transition ${detailOpen ? 'bg-[#cde5d8] text-[#364b41]' : 'text-[#75777d] hover:bg-[#f2f4f6]'}`}
                 title="Detay Paneli"
               >
                 <Info className="w-4 h-4" />
@@ -888,7 +885,7 @@ export default function Chat() {
                 <button
                   type="button"
                   onClick={() => setIsActionsOpen((prev) => !prev)}
-                  className="p-2 rounded-xl hover:bg-slate-100 text-slate-500"
+                  className="rounded-xl p-2 text-[#75777d] hover:bg-[#f2f4f6]"
                   title="Sohbet menüsü"
                 >
                   <MoreVertical className="w-4 h-4" />
@@ -925,7 +922,7 @@ export default function Chat() {
                 {/* Message list */}
                 <div
                   ref={messagesContainerRef}
-                  className="flex-1 overflow-y-auto bg-gray-50"
+                  className="flex-1 overflow-y-auto bg-[#f7f9fb]"
                 >
                   {msgLoading ? (
                     <MsgSkeleton />
@@ -954,50 +951,44 @@ export default function Chat() {
                               animate={{ opacity: 1, y: 0 }}
                               className={`group flex items-end gap-1 ${
                                 isSystem
-                                  ? 'justify-center'
+                                  ? 'justify-center mx-auto'
                                   : isMine
-                                    ? 'justify-end'
-                                    : 'justify-start'
+                                    ? 'justify-end max-w-[80%] ml-auto'
+                                    : 'justify-start max-w-[80%]'
                               }`}
                             >
                               {isMine && (
                                 <button
                                   onClick={() => handleDeleteMessage(msg.id)}
                                   title="Mesajı sil"
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 mb-1 shrink-0"
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full text-[#c4c6cd] hover:text-red-500 hover:bg-red-50 mb-1 shrink-0"
                                 >
-                                  <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    className="w-3.5 h-3.5"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <polyline points="3 6 5 6 21 6" />
-                                    <path d="M19 6l-1 14H6L5 6" />
-                                    <path d="M10 11v6" />
-                                    <path d="M14 11v6" />
-                                    <path d="M9 6V4h6v2" />
-                                  </svg>
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               )}
 
                               <div
-                                className={`max-w-[72%] md:max-w-[60%] px-4 py-2.5 text-sm leading-relaxed break-words ${
+                                className={`flex flex-col ${
                                   isSystem
-                                    ? 'bg-amber-50 text-amber-800 border border-amber-200 text-center w-full mx-4 rounded-2xl'
+                                    ? 'items-center w-full'
                                     : isMine
-                                      ? 'bg-emerald-600 text-white rounded-2xl rounded-br-sm shadow-sm shadow-emerald-200/60'
-                                      : 'bg-white border border-slate-200 text-slate-800 rounded-2xl rounded-bl-sm shadow-sm'
+                                      ? 'items-end'
+                                      : 'items-start'
                                 }`}
                               >
-                                {isSystem && (
-                                  <span className="block mb-1 text-[10px] uppercase tracking-wider opacity-70 font-bold">
-                                    📢 Sistem
-                                  </span>
+                                <div
+                                  className={`px-4 py-3 text-sm leading-relaxed break-words shadow-sm ${
+                                    isSystem
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-200 text-center w-full rounded-2xl'
+                                      : isMine
+                                        ? 'bg-[#cde5d8] text-[#003308] rounded-2xl rounded-tr-none'
+                                        : 'bg-[#f2f4f6] text-[#44474d] rounded-2xl rounded-tl-none'
+                                  }`}
+                                >
+                                  {isSystem && (
+                                    <span className="block mb-1 text-[10px] uppercase tracking-wider opacity-70 font-bold">
+                                      📢 Sistem
+                                    </span>
                                 )}
 
                                 {/* Attachment rendering */}
@@ -1064,18 +1055,15 @@ export default function Chat() {
                                   )}
 
                                 {msg.content &&
-                                  !(
-                                    ['📷 Fotoğraf', '📄 Belge'].includes(
-                                      msg.content,
-                                    ) && msg.attachmentUrls?.length
-                                  ) && <p>{msg.content}</p>}
-                                <p
-                                  className={`text-[10px] mt-1 flex items-center gap-1 justify-end ${
-                                    isSystem
-                                      ? 'text-amber-600'
-                                      : isMine
-                                        ? 'text-emerald-200'
-                                        : 'text-slate-400'
+                                    !(
+                                      ['📷 Fotoğraf', '📄 Belge'].includes(
+                                        msg.content,
+                                      ) && msg.attachmentUrls?.length
+                                    ) && <p>{msg.content}</p>}
+                                </div>
+                                <div
+                                  className={`mt-1 flex items-center gap-1 text-[10px] text-[#75777d] ${
+                                    isMine ? 'mr-1' : 'ml-1'
                                   }`}
                                 >
                                   {formatDistanceToNow(
@@ -1087,9 +1075,9 @@ export default function Chat() {
                                     { addSuffix: true, locale: tr },
                                   )}
                                   {isMine && (
-                                    <CheckCheck className="w-3 h-3 ml-1 opacity-70" />
+                                    <CheckCheck className="w-3.5 h-3.5 text-[#4d6359]" />
                                   )}
-                                </p>
+                                </div>
                               </div>
                             </motion.div>
                           );
@@ -1127,12 +1115,16 @@ export default function Chat() {
                 {/* ── Input bar ── */}
                 <form
                   onSubmit={handleSend}
-                  className="px-4 py-3 border-t border-slate-200 bg-white shrink-0"
+                  className="shrink-0 bg-white p-4"
                 >
-                  <div className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                    Güvenliğiniz için telefon numaranızı veya adresinizi chat
-                    üzerinden paylaşırken dikkatli olun. Takaslarınızı kalabalık
-                    ve güvenli yerlerde gerçekleştirin.
+                  {/* Safety Alert */}
+                  <div className="mb-4 flex items-start gap-3 rounded-xl bg-red-50 p-3">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 text-red-500 shrink-0" />
+                    <p className="text-[11px] font-medium leading-normal text-red-900">
+                      Güvenliğiniz için telefon numaranızı veya e-posta
+                      adresinizi paylaşmadan önce ürünün ödemesini Döngü Güvenli
+                      Ödeme sistemi üzerinden yapmanızı öneririz.
+                    </p>
                   </div>
 
                   {/* Preview bar */}
@@ -1175,51 +1167,53 @@ export default function Chat() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 bg-slate-50 rounded-2xl border border-slate-200 px-3 py-2 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx,.txt"
-                      className="hidden"
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        if (files.length)
-                          setSelectedFiles((prev) =>
-                            [...prev, ...files].slice(0, 5),
-                          );
-                        e.target.value = '';
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition shrink-0 disabled:opacity-40"
-                      title="Fotoğraf veya Belge Ekle"
-                    >
-                      {uploading ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Paperclip className="w-4 h-4" />
-                      )}
-                    </button>
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={handleInputChange}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Mesajınızı yazın... (Enter ile gönder)"
-                      className="flex-1 bg-transparent text-sm outline-none text-slate-800 placeholder-slate-400 min-w-0"
-                    />
+                  <div className="flex items-end gap-3">
+                    <div className="flex flex-1 items-end rounded-2xl bg-[#f2f4f6] p-2 transition-all focus-within:bg-white focus-within:ring-1 focus-within:ring-[#c4c6cd]">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx,.txt"
+                        className="hidden"
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length)
+                            setSelectedFiles((prev) =>
+                              [...prev, ...files].slice(0, 5),
+                            );
+                          e.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        className="p-2 text-[#75777d] transition-colors hover:text-[#05162b] disabled:opacity-40"
+                        title="Fotoğraf veya Belge Ekle"
+                      >
+                        {uploading ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Paperclip className="w-5 h-5" />
+                        )}
+                      </button>
+                      <textarea
+                        value={newMessage}
+                        onChange={handleInputChange}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Mesajınızı buraya yazın..."
+                        rows="1"
+                        className="max-h-32 flex-1 resize-none border-none bg-transparent px-2 py-2 text-sm text-[#191c1e] placeholder:text-[#75777d] focus:ring-0"
+                      />
+                    </div>
                     <button
                       type="submit"
                       disabled={
                         (!newMessage.trim() && !selectedFiles.length) || sending
                       }
-                      className="p-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition disabled:opacity-40 disabled:cursor-not-allowed shrink-0 shadow-sm"
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#05162b] text-white transition-all hover:shadow-xl hover:shadow-[#05162b]/30 active:scale-90 disabled:opacity-40 disabled:hover:shadow-none"
                     >
-                      <Send className="w-3.5 h-3.5" />
+                      <Send className="w-5 h-5" />
                     </button>
                   </div>
                 </form>

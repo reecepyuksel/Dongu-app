@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import {
   Item,
   ItemStatus,
@@ -14,6 +14,7 @@ import {
   ItemPostType,
 } from './entities/item.entity';
 import { CreateItemDto } from './dto/create-item.dto';
+import { FindItemsQueryDto, PaginatedResult } from './dto/find-items-query.dto';
 import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
@@ -34,6 +35,7 @@ export class ItemsService {
     @InjectRepository(CommunityMember)
     private communityMembersRepository: Repository<CommunityMember>,
     private notificationsService: NotificationsService,
+    private dataSource: DataSource,
   ) {}
 
   private sanitizePublicUser(user?: User | null) {
@@ -233,24 +235,21 @@ export class ItemsService {
     }
     // --- Smart Matchmaking Logic End ---
 
-    // İlan oluşturma puanı: +50
-    const owner = await this.usersRepository.findOne({ where: { id: userId } });
-    if (owner) {
-      owner.karmaPoint = (owner.karmaPoint || 0) + 50;
-      await this.usersRepository.save(owner);
-    }
+    // Atomic karma increment — no race condition
+    await this.dataSource
+      .createQueryBuilder()
+      .update(User)
+      .set({ karmaPoint: () => '"karmaPoint" + 50' })
+      .where('id = :id', { id: userId })
+      .execute();
 
     return savedItem;
   }
 
-  async findAll(
-    city?: string,
-    district?: string,
-    shareType?: string,
-    postType?: string,
-    userId?: string,
-  ): Promise<any[]> {
-    const query = this.itemsRepository
+  async findAll(query: FindItemsQueryDto, userId?: string): Promise<PaginatedResult<any>> {
+    const { page = 1, limit = 20, city, district, category, shareType, postType } = query;
+
+    const qb = this.itemsRepository
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.owner', 'owner')
       .leftJoinAndSelect('item.community', 'community')
@@ -258,40 +257,40 @@ export class ItemsService {
       .andWhere('community.id IS NULL');
 
     if (postType && postType !== 'all') {
-      query.andWhere('item.postType = :postType', { postType });
+      qb.andWhere('item.postType = :postType', { postType });
     }
-
     if (shareType && shareType !== 'all') {
-      query.andWhere('item.shareType = :shareType', { shareType });
+      qb.andWhere('item.shareType = :shareType', { shareType });
     }
-
     if (city) {
-      const citiesArray = city
-        .split(',')
-        .map((c) => c.trim())
-        .filter(Boolean);
-      if (citiesArray.length > 0) {
-        query.andWhere('item.city IN (:...citiesArray)', { citiesArray });
-      }
+      const cities = city.split(',').map((c) => c.trim()).filter(Boolean);
+      if (cities.length) qb.andWhere('item.city IN (:...cities)', { cities });
     }
     if (district) {
-      const districtsArray = district
-        .split(',')
-        .map((d) => d.trim())
-        .filter(Boolean);
-      if (districtsArray.length > 0) {
-        query.andWhere('item.district IN (:...districtsArray)', {
-          districtsArray,
-        });
-      }
+      const districts = district.split(',').map((d) => d.trim()).filter(Boolean);
+      if (districts.length) qb.andWhere('item.district IN (:...districts)', { districts });
+    }
+    if (category) {
+      const categories = category.split(',').map((c) => c.trim()).filter(Boolean);
+      if (categories.length) qb.andWhere('item.category IN (:...categories)', { categories });
     }
 
-    const items = await query
+    const [rawItems, total] = await qb
       .orderBy('item.createdAt', 'DESC')
       .loadRelationCountAndMap('item.applicationsCount', 'item.applications')
-      .getMany();
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
 
-    return items.map((item) => this.sanitizePublicItem(item));
+    return {
+      data: rawItems.map((item) => this.sanitizePublicItem(item)),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   async findOne(id: string, userId?: string): Promise<any> {
@@ -385,44 +384,53 @@ export class ItemsService {
     userId: string,
     proofImageUrl?: string,
   ): Promise<Item> {
-    const item = await this.itemsRepository.findOne({
-      where: { id: itemId },
-      relations: ['owner', 'winner'],
-    });
+    return await this.dataSource.transaction(async (manager) => {
+      const item = await manager.findOne(Item, {
+        where: { id: itemId },
+        relations: ['owner', 'winner'],
+      });
 
-    if (!item) throw new NotFoundException('İlan bulunamadı.');
-    if (item.status !== ItemStatus.GIVEN_AWAY) {
-      throw new BadRequestException('Bu eşya henüz döngüden çıkmamış.');
-    }
+      if (!item) throw new NotFoundException('İlan bulunamadı.');
+      if (item.status !== ItemStatus.GIVEN_AWAY) {
+        throw new BadRequestException('Bu eşya henüz döngüden çıkmamış.');
+      }
 
-    if (!item.winner || item.winner.id !== userId) {
-      throw new BadRequestException(
-        'Sadece bu döngünün yeni sahibi eşyayı onaylayabilir.',
-      );
-    }
+      if (!item.winner || item.winner.id !== userId) {
+        throw new BadRequestException(
+          'Sadece bu döngünün yeni sahibi eşyayı onaylayabilir.',
+        );
+      }
 
-    if (item.isConfirmed) {
-      throw new BadRequestException(
-        'Bu eşya zaten teslim alınmış ve onaylanmış.',
-      );
-    }
+      if (item.isConfirmed) {
+        throw new BadRequestException(
+          'Bu eşya zaten teslim alınmış ve onaylanmış.',
+        );
+      }
 
-    // Onayla
-    item.isConfirmed = true;
+      // 1. Onayla ve Varsa kanıt fotoğrafını kaydet
+      item.isConfirmed = true;
+      if (proofImageUrl) {
+        item.proofImage = proofImageUrl;
+      }
+      const savedItem = await manager.save(item);
 
-    // Varsa kanıt fotoğrafını kaydet
-    if (proofImageUrl) {
-      item.proofImage = proofImageUrl;
-    }
+      // 2. Karma Puanı ve İstatistik Dağıtımı (Atomic & Transactional)
+      if (item.postType === ItemPostType.REQUESTING) {
+        // "Var Mı?" (Request) durumu
+        // Winner (Bende Var diyen kişi): +200
+        await manager.increment(User, { id: item.winner.id }, 'karmaPoint', 200);
+        await manager.increment(
+          User,
+          { id: item.winner.id },
+          'resolvedRequestsCount',
+          1,
+        );
 
-    // "Var Mı?" (Request) ilanının giderilmesi
-    if (item.postType === 'REQUESTING') {
-      if (item.winner) {
-        item.winner.karmaPoint = (item.winner.karmaPoint || 0) + 200;
-        item.winner.resolvedRequestsCount =
-          (item.winner.resolvedRequestsCount || 0) + 1;
-        await this.usersRepository.save(item.winner);
+        // Owner (Arayan kişi): +20
+        await manager.increment(User, { id: item.owner.id }, 'karmaPoint', 20);
 
+        // Bildirimler (Side effects - transaction içinde kalabilir veya dışarı taşınabilir. 
+        // Burada DB tutarlılığı için içeride tutuyoruz)
         await this.notificationsService.createNotification(
           item.winner.id,
           '🌟 İhtiyaç Giderildi!',
@@ -430,56 +438,38 @@ export class ItemsService {
           NotificationType.SUCCESS,
           item.id,
         );
-      }
-      if (item.owner) {
-        item.owner.karmaPoint = (item.owner.karmaPoint || 0) + 20;
-        await this.usersRepository.save(item.owner);
-
         await this.notificationsService.createNotification(
           item.owner.id,
           '🎉 İhtiyacın Karşılandı!',
-          `${item.winner?.fullName || 'Bir Döngü üyesi'} talebini yerine getirdi ve eşyayı teslim aldın. Döngü tamamlandı! +20 İyilik Puanı eklendi.`,
+          `${item.winner.fullName} talebini yerine getirdi ve eşyayı teslim aldın. +20 İyilik Puanı eklendi.`,
+          NotificationType.SUCCESS,
+          item.id,
+        );
+      } else {
+        // Normal Bağış veya Takas
+        let ownerPoints = 150;
+        let winnerPoints = 20;
+        let notificationMsg = `${item.winner.fullName} paylaştığınız eşyayı (${item.title}) teslim aldığını doğruladı. +150 İyilik Puanı eklendi! ✨`;
+
+        if (item.shareType === ShareType.TRADE) {
+          ownerPoints = 100;
+          winnerPoints = 100;
+          notificationMsg = `${item.winner.fullName} eşyayı teslim aldığını onayladı. Mutlu son! +100 İyilik Puanı kazandınız!`;
+        }
+
+        await manager.increment(User, { id: item.owner.id }, 'karmaPoint', ownerPoints);
+        await manager.increment(User, { id: item.winner.id }, 'karmaPoint', winnerPoints);
+
+        await this.notificationsService.createNotification(
+          item.owner.id,
+          '🎉 Teslimat Onaylandı!',
+          notificationMsg,
           NotificationType.SUCCESS,
           item.id,
         );
       }
-    } else {
-      // Normal Karma Puanı dağıtımı (+150 Bağışçı, +20 Alıcı veya +100 her ikisine)
-      if (item.shareType === ShareType.TRADE) {
-        if (item.owner) {
-          item.owner.karmaPoint = (item.owner.karmaPoint || 0) + 100;
-          await this.usersRepository.save(item.owner);
 
-          await this.notificationsService.createNotification(
-            item.owner.id,
-            '🎉 Takas Teslimatı Onaylandı!',
-            `${item.winner.fullName} eşyayı teslim aldığını onayladı. Mutlu son! +100 İyilik Puanı kazandınız!`,
-            NotificationType.SUCCESS,
-            item.id,
-          );
-        }
-
-        item.winner.karmaPoint = (item.winner.karmaPoint || 0) + 100;
-        await this.usersRepository.save(item.winner);
-      } else {
-        if (item.owner) {
-          item.owner.karmaPoint = (item.owner.karmaPoint || 0) + 150;
-          await this.usersRepository.save(item.owner);
-
-          await this.notificationsService.createNotification(
-            item.owner.id,
-            '🎉 Teslimat Onaylandı!',
-            `${item.winner.fullName} paylaştığınız eşyayı (${item.title}) teslim aldığını doğruladı. Döngü tamamlandı! +150 İyilik Puanı heybenize eklendi! ✨`,
-            NotificationType.SUCCESS,
-            item.id,
-          );
-        }
-
-        item.winner.karmaPoint = (item.winner.karmaPoint || 0) + 20;
-        await this.usersRepository.save(item.winner);
-      }
-    }
-
-    return this.itemsRepository.save(item);
+      return savedItem;
+    });
   }
 }

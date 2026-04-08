@@ -301,7 +301,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-24 pb-8 sm:pt-28 sm:pb-10">
       <div className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
           Ayarlar

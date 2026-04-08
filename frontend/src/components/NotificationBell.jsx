@@ -1,262 +1,343 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bell, Check, CheckCheck, ExternalLink, Info, Trophy, AlertTriangle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Bell,
+  CheckCheck,
+  ExternalLink,
+  Info,
+  Sparkles,
+  TriangleAlert,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import { io } from 'socket.io-client';
 
 const typeStyles = {
-    SUCCESS: { icon: Trophy, bg: 'bg-emerald-50', border: 'border-emerald-200', iconColor: 'text-emerald-500', badge: 'bg-emerald-500' },
-    WARNING: { icon: AlertTriangle, bg: 'bg-amber-50', border: 'border-amber-200', iconColor: 'text-amber-500', badge: 'bg-amber-500' },
-    INFO: { icon: Info, bg: 'bg-blue-50', border: 'border-blue-200', iconColor: 'text-blue-500', badge: 'bg-blue-500' },
+  SUCCESS: {
+    icon: Sparkles,
+    bg: 'bg-[#d0e8db]',
+    iconColor: 'text-[#364b41]',
+    badge: 'bg-[#4d6359]',
+  },
+  WARNING: {
+    icon: TriangleAlert,
+    bg: 'bg-[#fff3e0]',
+    iconColor: 'text-[#a15f00]',
+    badge: 'bg-[#a15f00]',
+  },
+  INFO: {
+    icon: Info,
+    bg: 'bg-[#d4e3ff]',
+    iconColor: 'text-[#38485f]',
+    badge: 'bg-[#38485f]',
+  },
 };
 
 export default function NotificationBell() {
-    const { isAuthenticated } = useAuth();
-    const [notifications, setNotifications] = useState([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [isOpen, setIsOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const dropdownRef = useRef(null);
-    const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
+  const navigate = useNavigate();
 
-    const [socket, setSocket] = useState(null);
+  const [socket, setSocket] = useState(null);
 
-    // Audio for notification pop
-    const popSoundUrl = "data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA//NExJQAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA";
-    const audioRef = useRef(new Audio(popSoundUrl));
+  const popSoundUrl =
+    'data:audio/mpeg;base64,//NExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA//NExJQAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoAAAH+GCAAAAOEwAA4XAACIQAAgQAAAEAAAIgAAACAAA';
+  const audioRef = useRef(new Audio(popSoundUrl));
 
-    // Poll unread count
-    useEffect(() => {
-        if (!isAuthenticated) return;
+  // Poll unread count
+  useEffect(() => {
+    if (!isAuthenticated) return;
 
-        fetchUnreadCount();
-        const interval = setInterval(fetchUnreadCount, 5000);
-        return () => clearInterval(interval);
-    }, [isAuthenticated]);
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 5000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
 
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-                setIsOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    const fetchUnreadCount = async () => {
-        try {
-            const res = await api.get('/notifications/unread-count');
-            setUnreadCount(res.data.count);
-        } catch (err) {
-            // silent
-        }
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsOpen(false);
+      }
     };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-    // Web Sockets for Real-time Notifications & Sounds
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token || !isAuthenticated) return;
-        
-        const userId = JSON.parse(atob(token.split('.')[1]))?.sub;
-        if (!userId) return;
+  const fetchUnreadCount = async () => {
+    try {
+      const res = await api.get('/notifications/unread-count');
+      setUnreadCount(res.data.count);
+    } catch (err) {
+      // silent
+    }
+  };
 
-        const newSocket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3005', {
-            query: { userId }
-        });
-        
-        setSocket(newSocket);
+  // Web Sockets for Real-time Notifications & Sounds
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token || !isAuthenticated) return;
 
-        return () => newSocket.close();
-    }, [isAuthenticated]);
+    const userId = JSON.parse(atob(token.split('.')[1]))?.sub;
+    if (!userId) return;
 
-    useEffect(() => {
-        if (!socket) return;
-
-        const playPopSound = () => {
-            try {
-                audioRef.current.currentTime = 0;
-                audioRef.current.play().catch(err => console.log('Audio autoplay prevented by browser', err));
-            } catch(e) {}
-        };
-
-        socket.on('newNotification', () => {
-             playPopSound();
-             fetchUnreadCount();
-             if (isOpen) fetchNotifications();
-        });
-
-        return () => {
-            socket.off('newNotification');
-        };
-    }, [socket, isOpen]);
-
-    const fetchNotifications = async () => {
-        setLoading(true);
-        try {
-            const res = await api.get('/notifications');
-            setNotifications(res.data);
-        } catch (err) {
-            console.error('Failed to fetch notifications', err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleToggle = () => {
-        if (!isOpen) {
-            fetchNotifications();
-        }
-        setIsOpen(!isOpen);
-    };
-
-    const handleNotificationClick = async (notification) => {
-        // Mark as read
-        if (!notification.isRead) {
-            try {
-                await api.post(`/notifications/${notification.id}/read`);
-                setNotifications(prev =>
-                    prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
-                );
-                setUnreadCount(prev => Math.max(0, prev - 1));
-            } catch (err) { /* silent */ }
-        }
-
-        // Navigate to related item if exists
-        if (notification.relatedId) {
-            setIsOpen(false);
-            navigate(`/items/${notification.relatedId}`);
-        }
-    };
-
-    const handleMarkAllRead = async () => {
-        try {
-            await api.post('/notifications/read-all');
-            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-            setUnreadCount(0);
-        } catch (err) {
-            console.error('Failed to mark all as read', err);
-        }
-    };
-
-    const formatTime = (dateStr) => {
-        const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
-        const now = new Date();
-        const diffMs = now - date;
-        const diffMin = Math.floor(diffMs / 60000);
-        const diffHour = Math.floor(diffMs / 3600000);
-        const diffDay = Math.floor(diffMs / 86400000);
-
-        if (diffMin < 1) return 'Şimdi';
-        if (diffMin < 60) return `${diffMin} dk önce`;
-        if (diffHour < 24) return `${diffHour} saat önce`;
-        if (diffDay < 7) return `${diffDay} gün önce`;
-        return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-    };
-
-    if (!isAuthenticated) return null;
-
-    return (
-        <div className="relative" ref={dropdownRef}>
-            {/* Bell Button */}
-            <button
-                onClick={handleToggle}
-                className="relative p-1.5 sm:p-2 rounded-lg hover:bg-slate-100 transition flex flex-col items-center justify-center gap-0.5 group"
-                title="Bildirimler"
-            >
-                <div className="relative">
-                    <Bell className={`w-5 h-5 transition ${isOpen ? 'text-emerald-600' : 'text-slate-500 group-hover:text-emerald-600'}`} />
-
-                    {unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full border-2 border-white animate-pulse shadow-sm leading-none">
-                            {unreadCount > 9 ? '9+' : unreadCount}
-                        </span>
-                    )}
-                </div>
-                <span className={`hidden md:block text-[10px] font-bold transition-colors mt-0.5 ${isOpen ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'}`}>
-                    Bildirimler
-                </span>
-            </button>
-
-            {/* Dropdown */}
-            {isOpen && (
-                <div className="absolute right-0 top-full mt-2 w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-[100] animate-fade-in-down">
-                    {/* Header */}
-                    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50">
-                        <h3 className="font-bold text-sm text-slate-800 flex items-center gap-2">
-                            <Bell className="w-4 h-4 text-slate-400" />
-                            Bildirimler
-                        </h3>
-                        {unreadCount > 0 && (
-                            <button
-                                onClick={handleMarkAllRead}
-                                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1 transition"
-                            >
-                                <CheckCheck className="w-3.5 h-3.5" />
-                                Tümünü Okundu İşaretle
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Notification List */}
-                    <div className="max-h-[400px] overflow-y-auto">
-                        {loading && notifications.length === 0 && (
-                            <div className="flex justify-center py-10">
-                                <div className="animate-spin h-6 w-6 border-2 border-slate-300 border-t-emerald-600 rounded-full"></div>
-                            </div>
-                        )}
-
-                        {!loading && notifications.length === 0 && (
-                            <div className="py-12 text-center">
-                                <Bell className="w-10 h-10 text-slate-200 mx-auto mb-3" />
-                                <p className="text-sm text-slate-400">Henüz bildiriminiz yok</p>
-                            </div>
-                        )}
-
-                        {notifications.slice(0, 10).map((notif) => {
-                            const style = typeStyles[notif.type] || typeStyles.INFO;
-                            const IconComponent = style.icon;
-
-                            return (
-                                <button
-                                    key={notif.id}
-                                    onClick={() => handleNotificationClick(notif)}
-                                    className={`w-full text-left px-5 py-3.5 flex items-start gap-3 transition border-b border-slate-50 last:border-0 group
-                                        ${notif.isRead
-                                            ? 'bg-white hover:bg-slate-50'
-                                            : `${style.bg} hover:brightness-95`
-                                        }`}
-                                >
-                                    {/* Icon */}
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${notif.isRead ? 'bg-slate-100' : style.bg} border ${notif.isRead ? 'border-slate-200' : style.border}`}>
-                                        <IconComponent className={`w-4 h-4 ${notif.isRead ? 'text-slate-400' : style.iconColor}`} />
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`text-sm leading-snug ${notif.isRead ? 'text-slate-600' : 'text-slate-800 font-semibold'}`}>
-                                            {notif.title}
-                                        </p>
-                                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{notif.message}</p>
-                                        <p className="text-[10px] text-slate-400 mt-1">{formatTime(notif.createdAt)}</p>
-                                    </div>
-
-                                    {/* Unread dot or link icon */}
-                                    <div className="flex-shrink-0 mt-1">
-                                        {!notif.isRead ? (
-                                            <div className={`w-2.5 h-2.5 rounded-full ${style.badge} shadow-sm`} />
-                                        ) : notif.relatedId ? (
-                                            <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500 transition" />
-                                        ) : null}
-                                    </div>
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-        </div>
+    const newSocket = io(
+      import.meta.env.VITE_API_URL?.replace('/api', '') ||
+        'http://localhost:3005',
+      {
+        query: { userId },
+      },
     );
+
+    setSocket(newSocket);
+
+    return () => newSocket.close();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const playPopSound = () => {
+      try {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play().catch(() => {});
+      } catch (e) {}
+    };
+
+    socket.on('newNotification', () => {
+      playPopSound();
+      fetchUnreadCount();
+      if (isOpen) fetchNotifications();
+    });
+
+    return () => {
+      socket.off('newNotification');
+    };
+  }, [socket, isOpen]);
+
+  const fetchNotifications = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/notifications');
+      setNotifications(res.data);
+    } catch (err) {
+      console.error('Failed to fetch notifications', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggle = () => {
+    if (!isOpen) {
+      fetchNotifications();
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleNotificationClick = async (notification) => {
+    // Mark as read
+    if (!notification.isRead) {
+      try {
+        await api.post(`/notifications/${notification.id}/read`);
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n.id === notification.id ? { ...n, isRead: true } : n,
+          ),
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (err) {
+        /* silent */
+      }
+    }
+
+    // Navigate to related item if exists
+    if (notification.relatedId) {
+      setIsOpen(false);
+      navigate(`/items/${notification.relatedId}`);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await api.post('/notifications/read-all');
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all as read', err);
+    }
+  };
+
+  const formatTime = (dateStr) => {
+    const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMin = Math.floor(diffMs / 60000);
+    const diffHour = Math.floor(diffMs / 3600000);
+    const diffDay = Math.floor(diffMs / 86400000);
+
+    if (diffMin < 1) return 'Şimdi';
+    if (diffMin < 60) return `${diffMin} dk önce`;
+    if (diffHour < 24) return `${diffHour} saat önce`;
+    if (diffDay < 7) return `${diffDay} gün önce`;
+    return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+  };
+
+  if (!isAuthenticated) return null;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={handleToggle}
+        className="relative rounded-full bg-white p-2 text-[#4d6359] shadow-[0_8px_20px_rgba(25,28,30,0.08)] transition hover:bg-[#f2f4f6]"
+        title="Bildirimler"
+      >
+        <Bell
+          className={`h-5 w-5 transition ${isOpen ? 'text-[#05162b]' : 'text-[#4d6359]'}`}
+        />
+
+        {unreadCount > 0 && (
+          <span className="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#ba1a1a] px-1 text-[10px] font-bold text-white">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 sm:right-0 top-full z-[120] mt-3 w-[90vw] sm:w-[400px] flex flex-col overflow-hidden rounded-2xl border border-[#e6e8ea] bg-[#ffffff] shadow-[0px_12px_32px_rgba(25,28,30,0.06)] font-[Manrope]">
+          {/* Header */}
+          <div className="flex items-center justify-between bg-[#f2f4f6]/50 p-5">
+            <div>
+              <h2 className="text-lg font-bold text-[#1b2b41]">Notifications</h2>
+              <p className="font-[Inter] text-xs text-[#75777d]">
+                Stay updated on your trades
+              </p>
+            </div>
+            <button
+              onClick={handleMarkAllRead}
+              className="font-[Inter] text-xs font-semibold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
+            >
+              Mark all as read
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex gap-1 bg-[#f2f4f6] px-2 py-1">
+            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#b2cabd]/20 px-3 py-2 font-[Inter] text-xs font-semibold text-[#1b2b41] transition-transform duration-200 active:scale-95">
+              <Bell className="h-3.5 w-3.5" />
+              All
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs text-[#75777d] transition-transform duration-200 hover:bg-[#e0e3e5] active:scale-95">
+              <CheckCheck className="h-3.5 w-3.5" />
+              Trades
+            </button>
+            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs text-[#75777d] transition-transform duration-200 hover:bg-[#e0e3e5] active:scale-95">
+              <Sparkles className="h-3.5 w-3.5" />
+              System
+            </button>
+          </div>
+
+          <div className="max-h-[400px] overflow-y-auto">
+            {loading && notifications.length === 0 && (
+              <div className="flex justify-center py-10">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e6e8ea] border-t-[#4d6359]"></div>
+              </div>
+            )}
+
+            {!loading && notifications.length === 0 && (
+              <div className="py-12 text-center">
+                <Bell className="mx-auto mb-3 h-10 w-10 text-[#c4c6cd]" />
+                <p className="text-sm font-semibold text-[#75777d]">
+                  Henüz bildiriminiz yok
+                </p>
+              </div>
+            )}
+
+            {notifications.slice(0, 10).map((notif) => {
+              const style = typeStyles[notif.type] || typeStyles.INFO;
+              const IconComponent = style.icon;
+
+              return (
+                <button
+                  key={notif.id}
+                  onClick={() => handleNotificationClick(notif)}
+                  className={`group relative flex w-full gap-4 border-b border-[#f2f4f6] p-4 text-left transition-colors hover:bg-[#f7f9fb] last:border-0 ${notif.isRead ? 'opacity-80' : ''}`}
+                >
+                  {/* Icon */}
+                  <div
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${notif.isRead ? 'bg-[#f2f4f6] text-[#75777d]' : `${style.bg} ${style.iconColor}`}`}
+                  >
+                    <IconComponent className="h-6 w-6" />
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex min-w-0 flex-grow flex-col">
+                    <div className="flex items-start justify-between">
+                      <span className="truncate text-sm font-bold text-[#1b2b41]">
+                        {notif.title}
+                      </span>
+                      <span className="shrink-0 font-[Inter] text-[10px] text-[#75777d]">
+                        {formatTime(notif.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-[Inter] text-xs text-[#51675d]">
+                      {notif.message}
+                    </p>
+
+                    {/* Action Buttons based on context */}
+                    {notif.relatedId && notif.type === 'SUCCESS' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/items/${notif.relatedId}`);
+                          setIsOpen(false);
+                        }}
+                        className="mt-3 w-full rounded-lg bg-[#4d6359] py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#364b41]"
+                      >
+                        Takas Sürecini Başlat
+                      </button>
+                    )}
+
+                    {notif.relatedId && notif.type !== 'SUCCESS' && (
+                      <div className="mt-3 flex gap-3">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/items/${notif.relatedId}`);
+                            setIsOpen(false);
+                          }}
+                          className="flex items-center gap-1.5 rounded-full bg-[#E0E7FF] px-3 py-1.5 text-[11px] font-medium text-[#4F46E5] transition-all hover:bg-[#D1D9FF] active:scale-95"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Detay
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Unread Indicator */}
+                  {!notif.isRead && (
+                    <div className="absolute right-4 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[#b2cabd]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="bg-[#f2f4f6]/30 p-4 text-center">
+            <button
+              onClick={() => setIsOpen(false)}
+              className="inline-flex items-center gap-2 text-sm font-bold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
+            >
+              Tüm Bildirimleri Gör
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

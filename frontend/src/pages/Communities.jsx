@@ -335,7 +335,7 @@ const Communities = () => {
     });
 
   return (
-    <div className="min-h-screen bg-slate-100/70">
+    <div className="min-h-screen bg-slate-100/70 pt-16">
       <section className="border-b border-slate-200 bg-gradient-to-b from-white to-slate-100/60">
         <div className="mx-auto max-w-7xl px-6 py-14 lg:px-10">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">

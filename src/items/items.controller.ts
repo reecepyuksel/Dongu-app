@@ -23,6 +23,8 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { FindItemsQueryDto } from './dto/find-items-query.dto';
+
 
 @Controller('items')
 export class ItemsController {
@@ -66,17 +68,11 @@ export class ItemsController {
   @UseGuards(OptionalJwtAuthGuard)
   @Get()
   findAll(
-    @Query('city') city?: string,
-    @Query('district') district?: string,
-    @Query('shareType') shareType?: string,
-    @Query('postType') postType?: string,
+    @Query() query: FindItemsQueryDto,
     @Request() req?,
   ) {
     return this.itemsService.findAll(
-      city,
-      district,
-      shareType,
-      postType,
+      query,
       req.user?.userId,
     );
   }

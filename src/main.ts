@@ -1,58 +1,58 @@
-console.log('DEBUG: main.ts is executing...');
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { DataSource } from 'typeorm';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+const logger = new Logger('Bootstrap');
 
 async function bootstrap() {
-  try {
-    console.log('DEBUG: Creating Nest App...');
-    const app = await NestFactory.create(AppModule, {
-      logger: ['error', 'warn', 'log', 'debug', 'verbose'],
-    });
-    console.log('DEBUG: Nest App Created. Configuring CORS...');
-    app.enableCors({
-      origin: true, // Allow all origins (including 192.168.1.179)
-      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      credentials: true,
-    });
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        transform: true,
-      }),
-    );
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log'],
+  });
 
-    const config = new DocumentBuilder()
-      .setTitle('Digital Goodwill Box API')
-      .setDescription('Döngü Sitesi API Dokümantasyonu')
-      .setVersion('1.0')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api', app, document);
+  // CORS: only allow explicitly configured origins; never wildcard in production
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    : ['http://localhost:5173', 'http://localhost:3000'];
 
-    const port = process.env.PORT || 3005;
-    console.log(`DEBUG: Listening on port ${port}...`);
-    await app.listen(port);
+  app.enableCors({
+    origin: allowedOrigins,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
 
-    const dataSource = app.get(DataSource);
-    if (dataSource.isInitialized) {
-      console.log(
-        `✅ Veritabanına başarıyla bağlanıldı (Port: ${process.env.DB_PORT || 5433})`,
-      );
-    } else {
-      console.error(
-        `❌ Veritabanı bağlantısı kurulamadı (Port: ${process.env.DB_PORT || 5433})`,
-      );
-    }
+  app.useGlobalFilters(new HttpExceptionFilter());
 
-    console.log(`\n🚀 Backend is running on: http://localhost:${port}`);
-    console.log(`📚 Swagger documentation: http://localhost:${port}/api\n`);
-  } catch (error) {
-    console.error('❌ Error starting the application:', error);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      transform: true,
+    }),
+  );
+
+  const config = new DocumentBuilder()
+    .setTitle('Döngü API')
+    .setDescription('Döngü Platform API Dokümantasyonu')
+    .setVersion('1.0')
+    .addBearerAuth()
+    .build();
+  SwaggerModule.setup('api', app, SwaggerModule.createDocument(app, config));
+
+  const port = process.env.PORT ?? 3005;
+  await app.listen(port);
+
+  const dataSource = app.get(DataSource);
+  if (dataSource.isInitialized) {
+    logger.log(`✅ DB bağlantısı başarılı (Port: ${process.env.DB_PORT ?? 5433})`);
+  } else {
+    logger.error(`❌ DB bağlantısı kurulamadı`);
   }
+
+  logger.log(`🚀 Backend: http://localhost:${port}`);
+  logger.log(`📚 Swagger: http://localhost:${port}/api`);
 }
-console.log('DEBUG: Imports finished. Calling bootstrap...');
+
 bootstrap();

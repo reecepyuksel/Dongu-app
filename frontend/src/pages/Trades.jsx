@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowLeft,
   Check,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Inbox,
   MessageCircle,
-  RefreshCw,
+  Search,
   X,
+  User,
+  Filter,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -22,15 +22,15 @@ import { useToast } from '../context/ToastContext';
 const statusConfig = {
   pending: {
     label: 'Beklemede',
-    className: 'bg-amber-50 text-amber-700 border-amber-200',
+    className: 'bg-[#fff3e0] text-[#a15f00]',
   },
   accepted: {
     label: 'Kabul Edildi',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    className: 'bg-[#d0e8db] text-[#364b41]',
   },
   rejected: {
     label: 'Reddedildi',
-    className: 'bg-red-50 text-red-700 border-red-200',
+    className: 'bg-[#ffdad6] text-[#93000a]',
   },
 };
 
@@ -38,10 +38,12 @@ const Trades = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading, user } = useAuth();
   const { showToast } = useToast();
+
   const [activeTab, setActiveTab] = useState('incoming');
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [lightbox, setLightbox] = useState({
     open: false,
     images: [],
@@ -49,32 +51,38 @@ const Trades = () => {
     title: '',
   });
 
-  const normalizeOffer = (offer) => ({
-    ...offer,
-    photoUrl:
-      offer.photos?.[0] ||
-      offer.photoUrl ||
-      offer.tradeMediaUrl ||
-      offer.offeredItem?.imageUrl ||
-      null,
-    partner: offer.sender?.id === user?.id ? offer.receiver : offer.sender,
-  });
+  const normalizeOffer = useCallback(
+    (offer) => ({
+      ...offer,
+      photoUrl:
+        offer.photos?.[0] ||
+        offer.photoUrl ||
+        offer.tradeMediaUrl ||
+        offer.offeredItem?.imageUrl ||
+        null,
+      partner: offer.sender?.id === user?.id ? offer.receiver : offer.sender,
+    }),
+    [user?.id],
+  );
 
-  const fetchOffers = async (showLoad = true) => {
-    try {
-      if (showLoad) setLoading(true);
-      const response = await api.get('/messages/my-trade-offers');
-      console.log('GET /messages/my-trade-offers sonucu:', response.data);
-      const normalized = response.data.map(normalizeOffer);
-      console.log('Normalize edilmiş teklifler:', normalized);
-      setOffers(normalized);
-    } catch (error) {
-      console.error('Trade offers could not be loaded', error);
-      showToast('Takas teklifleri yüklenemedi.', 'error');
-    } finally {
-      if (showLoad) setLoading(false);
-    }
-  };
+  const fetchOffers = useCallback(
+    async (showLoad = true) => {
+      try {
+        if (showLoad) setLoading(true);
+        const response = await api.get('/messages/my-trade-offers');
+        const normalized = Array.isArray(response.data)
+          ? response.data.map(normalizeOffer)
+          : [];
+        setOffers(normalized);
+      } catch (error) {
+        console.error('Trade offers could not be loaded', error);
+        showToast('Takas teklifleri yüklenemedi.', 'error');
+      } finally {
+        if (showLoad) setLoading(false);
+      }
+    },
+    [normalizeOffer, showToast],
+  );
 
   useEffect(() => {
     if (!authLoading) {
@@ -84,9 +92,8 @@ const Trades = () => {
         fetchOffers();
       }
     }
-  }, [authLoading, isAuthenticated, navigate]);
+  }, [authLoading, fetchOffers, isAuthenticated, navigate]);
 
-  // Real-time: takas durumu değişince listeyi yenile
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token || !isAuthenticated) return;
@@ -106,15 +113,13 @@ const Trades = () => {
     );
 
     sock.on('newMessage', (msg) => {
-      // Takas teklifi veya takas sohbet mesajı geldiğinde listeyi sessizce yenile
       if (msg?.isTradeOffer || msg?.tradeOfferId) {
         fetchOffers(false);
       }
     });
 
     return () => sock.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated]);
+  }, [fetchOffers, isAuthenticated]);
 
   const incomingOffers = useMemo(
     () => offers.filter((offer) => offer.receiver?.id === user?.id),
@@ -124,6 +129,42 @@ const Trades = () => {
   const outgoingOffers = useMemo(
     () => offers.filter((offer) => offer.sender?.id === user?.id),
     [offers, user?.id],
+  );
+
+  const filteredIncoming = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return incomingOffers;
+    return incomingOffers.filter((offer) => {
+      const title = (
+        offer.offeredItem?.title ||
+        offer.content ||
+        ''
+      ).toLowerCase();
+      const item = (offer.item?.title || '').toLowerCase();
+      const name = (offer.sender?.fullName || '').toLowerCase();
+      return title.includes(q) || item.includes(q) || name.includes(q);
+    });
+  }, [incomingOffers, searchTerm]);
+
+  const filteredOutgoing = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return outgoingOffers;
+    return outgoingOffers.filter((offer) => {
+      const title = (
+        offer.offeredItem?.title ||
+        offer.content ||
+        ''
+      ).toLowerCase();
+      const item = (offer.item?.title || '').toLowerCase();
+      const name = (offer.receiver?.fullName || '').toLowerCase();
+      return title.includes(q) || item.includes(q) || name.includes(q);
+    });
+  }, [outgoingOffers, searchTerm]);
+
+  const pendingCount = useMemo(
+    () =>
+      incomingOffers.filter((offer) => offer.tradeStatus === 'pending').length,
+    [incomingOffers],
   );
 
   const closeLightbox = () => {
@@ -168,15 +209,9 @@ const Trades = () => {
     document.body.style.overflow = 'hidden';
 
     const handleEsc = (e) => {
-      if (e.key === 'Escape') {
-        closeLightbox();
-      }
-      if (e.key === 'ArrowLeft') {
-        goPrevImage();
-      }
-      if (e.key === 'ArrowRight') {
-        goNextImage();
-      }
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowLeft') goPrevImage();
+      if (e.key === 'ArrowRight') goNextImage();
     };
 
     window.addEventListener('keydown', handleEsc);
@@ -209,162 +244,160 @@ const Trades = () => {
   };
 
   const renderEmptyState = (type) => (
-    <div className="rounded-3xl border border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
-      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
-        <Inbox className="h-8 w-8" />
+    <div className="col-span-full hidden flex-col items-center justify-center py-20 text-center sm:flex">
+      <div className="mb-8 flex h-48 w-48 items-center justify-center rounded-full bg-[#f2f4f6]">
+        <Inbox className="h-16 w-16 text-[#c4c6cd]" />
       </div>
-      <h2 className="text-xl font-bold text-slate-900 font-[Outfit]">
+      <h2 className="mb-2 font-[Manrope] text-2xl font-bold text-[#05162b]">
         {type === 'incoming'
-          ? 'Henüz gelen teklif yok'
-          : 'Henüz gönderdiğin teklif yok'}
+          ? 'Henüz Gelen Teklif Yok'
+          : 'Henüz Giden Teklif Yok'}
       </h2>
-      <p className="mt-2 text-sm font-medium text-slate-500">
+      <p className="mx-auto mb-8 max-w-xs text-[#75777d]">
         {type === 'incoming'
-          ? 'İlanlarına gelen teklifler burada listelenecek.'
-          : 'Başka ilanlara yaptığın teklifler ve durumları burada görünecek.'}
+          ? 'İlanlarını öne çıkararak daha fazla takas teklifi alabilirsin.'
+          : 'Siz teklif gönderdikçe durumlarını bu panelde takip edebileceksiniz.'}
       </p>
+      <button
+        onClick={() => navigate(type === 'incoming' ? '/dashboard' : '/')}
+        className="mx-auto flex items-center gap-2 rounded-full bg-[#05162b] px-8 py-3 font-bold text-white transition-opacity hover:opacity-90"
+      >
+        {type === 'incoming' ? 'Yeni İlan Ver' : "Network'e Göz At"}
+      </button>
     </div>
   );
 
   const renderOfferCard = (offer, type) => {
-    console.log('Render edilen teklif:', offer);
-    const status = statusConfig[offer.tradeStatus] || statusConfig.pending;
     const isPendingIncoming =
       type === 'incoming' && offer.tradeStatus === 'pending';
-    const offerTitle = offer.offeredItem?.title || offer.content;
+    const offerTitle = offer.offeredItem?.title || offer.content || 'Takas Teklifi';
+    const partner = type === 'incoming' ? offer.sender : offer.partner;
+
+    let statusLabel = 'BEKLEMEDE';
+    let statusClass = 'bg-white/90 text-[#05162b] backdrop-blur-md shadow-sm';
+    let cardClass = '';
+    let imgContainerClass = '';
+
+    if (offer.tradeStatus === 'accepted') {
+      statusLabel = 'KABUL EDİLDİ';
+      statusClass = 'bg-[#cde5d8] text-[#364b41] shadow-sm';
+    } else if (offer.tradeStatus === 'rejected') {
+      statusLabel = 'REDDEDİLDİ';
+      statusClass = 'bg-[#ffdad6] text-[#93000a] shadow-sm';
+      cardClass = 'opacity-80';
+      imgContainerClass = 'grayscale';
+    }
 
     return (
-      <motion.article
+      <div
         key={offer.id}
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-300 hover:shadow-md cursor-pointer"
-        onClick={() => navigate(`/trades/${offer.id}`)}
+        className={`group flex flex-col rounded-xl bg-white p-5 transition-all hover:scale-[1.02] hover:shadow-[0px_12px_32px_rgba(25,28,30,0.06)] ${cardClass}`}
       >
-        <div className="flex items-start gap-4">
-          <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-            {offer.photoUrl ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openLightbox(offer, offerTitle);
-                }}
-                className="h-full w-full"
-                title="Fotoğrafı büyüt"
-              >
-                <img
-                  src={offer.photoUrl}
-                  alt={offerTitle}
-                  className="h-full w-full object-cover cursor-zoom-in"
-                />
-              </button>
+        <div className={`relative mb-6 h-48 w-full overflow-hidden rounded-lg bg-[#f2f4f6] ${imgContainerClass}`}>
+          {offer.photoUrl ? (
+            <button
+              type="button"
+              onClick={() => openLightbox(offer, offerTitle)}
+              className="h-full w-full"
+            >
+              <img
+                src={offer.photoUrl}
+                alt={offerTitle}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-4xl">
+              📦
+            </div>
+          )}
+          <div
+            className={`absolute right-3 top-3 rounded-full px-3 py-1 font-[Inter] text-xs font-bold ${statusClass}`}
+          >
+            {statusLabel}
+          </div>
+        </div>
+
+        <div className="mb-4 flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            {partner?.profilePhoto ? (
+              <img
+                src={partner.profilePhoto}
+                alt={partner.fullName}
+                className="h-10 w-10 rounded-full object-cover"
+              />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-2xl opacity-60">
-                📦
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#f2f4f6] text-[#c4c6cd]">
+                <User className="h-6 w-6" />
               </div>
             )}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-lg font-bold text-slate-900 font-[Outfit]">
-                {type === 'incoming'
-                  ? offer.sender?.fullName || 'Bilinmeyen kullanıcı'
-                  : offer.partner?.fullName || 'Bilinmeyen kullanıcı'}
+            <div>
+              <p className="text-sm font-bold text-[#05162b]">
+                {partner?.fullName || 'Bilinmeyen Kullanıcı'}
               </p>
-              <span
-                className={`rounded-full border px-2.5 py-1 text-[11px] font-black uppercase tracking-wide ${status.className}`}
-              >
-                {status.label}
-              </span>
-            </div>
-
-            <p className="mt-2 line-clamp-2 text-sm font-semibold text-slate-700">
-              {offerTitle}
-            </p>
-
-            <p className="mt-1 text-sm text-slate-500">
-              {type === 'incoming'
-                ? `${offer.item?.title} ilanına teklif verdi`
-                : `${offer.item?.title} ilanına gönderildi`}
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-400">
-              <span className="flex items-center gap-1">
-                <Clock className="h-3.5 w-3.5" />
+              <p className="font-[Inter] text-xs text-[#75777d]">
                 {formatDistanceToNow(
                   new Date(
                     offer.createdAt.endsWith('Z')
                       ? offer.createdAt
-                      : `${offer.createdAt}Z`,
+                      : offer.createdAt + 'Z',
                   ),
                   { addSuffix: true, locale: tr },
                 )}
-              </span>
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <p className="text-sm font-medium text-slate-500">
-            {type === 'incoming'
-              ? 'Bu teklifi takas panelinden yönetebilirsin.'
-              : 'Teklif durumun burada güncel tutulur.'}
+        <div className="mb-6">
+          <h3 className="mb-1 line-clamp-1 text-base font-semibold text-[#05162b]">
+            {offer.item?.title || 'Bilinmeyen İlan'}
+          </h3>
+          <p className="flex items-center gap-1 font-[Inter] text-sm text-[#51675d]">
+            Teklif: <span className="font-bold text-[#05162b]">{offerTitle}</span>
           </p>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isPendingIncoming && (
-              <>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTradeResponse(offer.id, 'rejected');
-                  }}
-                  disabled={processingId === offer.id}
-                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <X className="h-4 w-4" />
-                  Reddet
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleTradeResponse(offer.id, 'accepted');
-                  }}
-                  disabled={processingId === offer.id}
-                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Check className="h-4 w-4" />
-                  Kabul Et
-                </button>
-              </>
-            )}
-
-            <Link
-              to={`/trades/${offer.id}`}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Takas Detayı
-            </Link>
-          </div>
         </div>
-      </motion.article>
+
+        <div className="mt-auto flex flex-col gap-2">
+          {isPendingIncoming && (
+            <div className="mb-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleTradeResponse(offer.id, 'rejected')}
+                disabled={processingId === offer.id}
+                className="flex-1 rounded-full bg-[#ffdad6] py-2.5 text-[13px] font-bold text-[#93000a] transition-all hover:bg-[#ffb4ab] hover:opacity-90"
+              >
+                Reddet
+              </button>
+              <button
+                type="button"
+                onClick={() => handleTradeResponse(offer.id, 'accepted')}
+                disabled={processingId === offer.id}
+                className="flex-1 rounded-full bg-[#cde5d8] py-2.5 text-[13px] font-bold text-[#364b41] transition-all hover:bg-[#b4ccbf] hover:opacity-90"
+              >
+                Kabul Et
+              </button>
+            </div>
+          )}
+          <Link
+            to={`/trades/${offer.id}`}
+            className="block w-full rounded-full bg-[#1b2b41] py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            Detayları Gör
+          </Link>
+        </div>
+      </div>
     );
   };
 
   if (authLoading || loading) {
     return (
-      <div className="mx-auto max-w-5xl px-6 py-12">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="space-y-4">
           {[1, 2, 3].map((item) => (
             <div
               key={item}
-              className="h-40 animate-pulse rounded-3xl border border-slate-100 bg-white"
+              className="h-40 animate-pulse rounded-[1.5rem] bg-[#e6e8ea]"
             />
           ))}
         </div>
@@ -373,85 +406,86 @@ const Trades = () => {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-12">
-      <button
-        onClick={() => navigate(-1)}
-        className="mb-4 flex items-center gap-2 text-sm text-slate-400 transition hover:text-emerald-600"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Geri Dön
-      </button>
-
-      <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div className="mx-auto max-w-7xl px-4 pt-28 pb-12 sm:px-6 md:px-12 lg:px-8">
+      {/* Header Section */}
+      <header className="mb-12 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black uppercase tracking-[0.3em] text-emerald-600">
-            Takas Paneli
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold text-slate-900 font-[Outfit]">
-            Merkezi Takas Yönetimi
+          <h1 className="mb-2 font-[Manrope] text-4xl font-extrabold tracking-tight text-[#05162b]">
+            Takas Yönetimi
           </h1>
-          <p className="mt-2 text-sm font-medium text-slate-500">
-            Gelen teklifleri yönet, gönderdiklerinin durumunu ayrı sekmelerde
-            takip et.
+          <p className="text-lg text-[#75777d]">
+            Sürdürülebilir bir gelecek için eşyalarını değerlendir.
           </p>
         </div>
+        <div className="flex items-center gap-4">
+          <div className="flex rounded-full bg-[#f2f4f6] p-1">
+            <button
+              onClick={() => setActiveTab('incoming')}
+              className={`rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+                activeTab === 'incoming'
+                  ? 'bg-white text-[#05162b] shadow-sm'
+                  : 'text-[#75777d] hover:text-[#05162b]'
+              }`}
+            >
+              Gelen Teklifler
+            </button>
+            <button
+              onClick={() => setActiveTab('outgoing')}
+              className={`rounded-full px-6 py-2.5 text-sm font-semibold transition-all ${
+                activeTab === 'outgoing'
+                  ? 'bg-white text-[#05162b] shadow-sm'
+                  : 'text-[#75777d] hover:text-[#05162b]'
+              }`}
+            >
+              Giden Teklifler
+            </button>
+          </div>
+        </div>
+      </header>
 
-        <button
-          type="button"
-          onClick={() => fetchOffers(false)}
-          className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Yenile
+      {/* Search and Filter Bar */}
+      <div className="mb-8 flex flex-wrap gap-4">
+        <label className="relative flex min-w-[300px] flex-1">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#c4c6cd]" />
+          <input
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border-none bg-[#f2f4f6] px-12 py-4 font-[Inter] transition-all focus:bg-white focus:ring-1 focus:ring-[#05162b]/15"
+            placeholder="Tekliflerde ara..."
+            type="text"
+          />
+        </label>
+        <button className="flex items-center gap-2 rounded-xl bg-[#f2f4f6] px-6 py-4 font-medium text-[#05162b] transition-colors hover:bg-[#e6e8ea]">
+          <Filter className="h-5 w-5" />
+          Filtrele
         </button>
       </div>
 
-      <div className="mb-6 flex rounded-2xl bg-slate-100 p-1">
-        <button
-          type="button"
-          onClick={() => setActiveTab('incoming')}
-          className={`flex-1 rounded-xl px-4 py-3 text-sm font-bold transition ${
-            activeTab === 'incoming'
-              ? 'bg-white text-emerald-700 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Gelen Teklifler ({incomingOffers.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('outgoing')}
-          className={`flex-1 rounded-xl px-4 py-3 text-sm font-bold transition ${
-            activeTab === 'outgoing'
-              ? 'bg-white text-emerald-700 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          Giden Teklifler ({outgoingOffers.length})
-        </button>
-      </div>
-
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {activeTab === 'incoming'
-          ? incomingOffers.length === 0
+          ? filteredIncoming.length === 0
             ? renderEmptyState('incoming')
-            : incomingOffers.map((offer) => renderOfferCard(offer, 'incoming'))
-          : outgoingOffers.length === 0
+            : filteredIncoming.map((offer) =>
+                renderOfferCard(offer, 'incoming'),
+              )
+          : filteredOutgoing.length === 0
             ? renderEmptyState('outgoing')
-            : outgoingOffers.map((offer) => renderOfferCard(offer, 'outgoing'))}
+            : filteredOutgoing.map((offer) =>
+                renderOfferCard(offer, 'outgoing'),
+              )}
       </div>
 
       <AnimatePresence>
         {lightbox.open && (
           <motion.div
-            className="fixed inset-0 z-[300] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={closeLightbox}
           >
             <motion.div
-              className="relative flex flex-col max-w-[90vw] max-h-[85vh] min-w-0 min-h-0"
+              className="relative flex max-h-[85vh] max-w-[90vw] min-h-0 min-w-0 flex-col"
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
@@ -461,7 +495,7 @@ const Trades = () => {
               <button
                 type="button"
                 onClick={closeLightbox}
-                className="absolute -top-3 -right-3 z-10 rounded-full bg-white/95 p-2 text-slate-800 shadow-xl hover:bg-white"
+                className="absolute -right-3 -top-3 z-10 rounded-full bg-white p-2 text-slate-800"
                 title="Kapat"
               >
                 <X className="h-5 w-5" />
@@ -472,7 +506,7 @@ const Trades = () => {
                   <button
                     type="button"
                     onClick={goPrevImage}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/90 p-2 text-slate-800 shadow-lg hover:bg-white"
+                    className="absolute left-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2 text-slate-800"
                     title="Önceki fotoğraf"
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -480,7 +514,7 @@ const Trades = () => {
                   <button
                     type="button"
                     onClick={goNextImage}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 z-10 rounded-full bg-white/90 p-2 text-slate-800 shadow-lg hover:bg-white"
+                    className="absolute right-3 top-1/2 z-10 -translate-y-1/2 rounded-full bg-white/90 p-2 text-slate-800"
                     title="Sonraki fotoğraf"
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -488,16 +522,16 @@ const Trades = () => {
                 </>
               )}
 
-              <div className="rounded-2xl bg-black/30 border border-white/20 p-6 flex items-center justify-center flex-1 min-h-0 overflow-hidden">
+              <div className="flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-black/30 p-6">
                 <img
                   src={lightbox.images[lightbox.index]}
                   alt={lightbox.title || 'Takas görseli'}
-                  className="w-auto h-auto max-w-full max-h-full object-contain"
+                  className="h-auto max-h-full w-auto max-w-full object-contain"
                 />
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-xs text-white/80 px-1">
-                <span className="truncate max-w-[70%]">{lightbox.title}</span>
+              <div className="mt-3 flex items-center justify-between px-1 text-xs text-white/80">
+                <span className="max-w-[70%] truncate">{lightbox.title}</span>
                 <span>
                   {lightbox.index + 1} / {lightbox.images.length}
                 </span>
