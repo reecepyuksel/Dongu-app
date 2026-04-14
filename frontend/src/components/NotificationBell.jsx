@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   CheckCheck,
@@ -39,6 +39,8 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [showAll, setShowAll] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
@@ -123,7 +125,7 @@ export default function NotificationBell() {
     setLoading(true);
     try {
       const res = await api.get('/notifications');
-      setNotifications(res.data);
+      setNotifications(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Failed to fetch notifications', err);
     } finally {
@@ -134,30 +136,54 @@ export default function NotificationBell() {
   const handleToggle = () => {
     if (!isOpen) {
       fetchNotifications();
+      setShowAll(false);
+      setActiveFilter('all');
     }
     setIsOpen(!isOpen);
   };
 
+  const markNotificationAsRead = async (notificationId) => {
+    try {
+      await api.post(`/notifications/${notificationId}/read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notificationId ? { ...n, isRead: true } : n)),
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch {
+      /* silent */
+    }
+  };
+
+  const resolveNotificationCategory = (notification) => {
+    const text =
+      `${notification?.title || ''} ${notification?.message || ''}`.toLowerCase();
+
+    if (text.includes('takas')) return 'trade';
+    if (text.includes('teslimat')) return 'trade';
+    if (text.includes('mesaj')) return 'message';
+    if (text.includes('katılımcı')) return 'system';
+    if (text.includes('çekiliş')) return 'system';
+    if (text.includes('aradığın ürün')) return 'system';
+    if (text.includes('ihtiyaç')) return 'system';
+    if (text.includes('yeni sahibi')) return 'system';
+
+    return 'system';
+  };
+
+  const getNotificationTarget = (notification) => {
+    if (!notification?.relatedId) return null;
+    return `/items/${notification.relatedId}`;
+  };
+
   const handleNotificationClick = async (notification) => {
-    // Mark as read
     if (!notification.isRead) {
-      try {
-        await api.post(`/notifications/${notification.id}/read`);
-        setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notification.id ? { ...n, isRead: true } : n,
-          ),
-        );
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      } catch (err) {
-        /* silent */
-      }
+      await markNotificationAsRead(notification.id);
     }
 
-    // Navigate to related item if exists
-    if (notification.relatedId) {
+    const target = getNotificationTarget(notification);
+    if (target) {
       setIsOpen(false);
-      navigate(`/items/${notification.relatedId}`);
+      navigate(target);
     }
   };
 
@@ -186,6 +212,29 @@ export default function NotificationBell() {
     return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
   };
 
+  const filteredNotifications = useMemo(() => {
+    if (activeFilter === 'all') return notifications;
+
+    return notifications.filter((notification) => {
+      const category = resolveNotificationCategory(notification);
+      if (activeFilter === 'trade') {
+        return category === 'trade' || category === 'message';
+      }
+      return category === 'system';
+    });
+  }, [activeFilter, notifications]);
+
+  const visibleNotifications = useMemo(
+    () =>
+      showAll ? filteredNotifications : filteredNotifications.slice(0, 10),
+    [filteredNotifications, showAll],
+  );
+
+  const unreadInList = useMemo(
+    () => notifications.filter((notification) => !notification.isRead).length,
+    [notifications],
+  );
+
   if (!isAuthenticated) return null;
 
   return (
@@ -211,69 +260,101 @@ export default function NotificationBell() {
           {/* Header */}
           <div className="flex items-center justify-between bg-[#f2f4f6]/50 p-5">
             <div>
-              <h2 className="text-lg font-bold text-[#1b2b41]">Notifications</h2>
+              <h2 className="text-lg font-bold text-[#1b2b41]">Bildirimler</h2>
               <p className="font-[Inter] text-xs text-[#75777d]">
-                Stay updated on your trades
+                Hareketlerini ve mesajlarını buradan takip et
               </p>
             </div>
             <button
               onClick={handleMarkAllRead}
+              disabled={unreadInList === 0}
               className="font-[Inter] text-xs font-semibold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
             >
-              Mark all as read
+              Tümünü okundu yap
             </button>
           </div>
 
           {/* Tabs */}
           <div className="flex gap-1 bg-[#f2f4f6] px-2 py-1">
-            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#b2cabd]/20 px-3 py-2 font-[Inter] text-xs font-semibold text-[#1b2b41] transition-transform duration-200 active:scale-95">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs transition-transform duration-200 active:scale-95 ${
+                activeFilter === 'all'
+                  ? 'bg-[#b2cabd]/20 font-semibold text-[#1b2b41]'
+                  : 'text-[#75777d] hover:bg-[#e0e3e5]'
+              }`}
+            >
               <Bell className="h-3.5 w-3.5" />
-              All
+              Tümü
             </button>
-            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs text-[#75777d] transition-transform duration-200 hover:bg-[#e0e3e5] active:scale-95">
+            <button
+              onClick={() => setActiveFilter('trade')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs transition-transform duration-200 active:scale-95 ${
+                activeFilter === 'trade'
+                  ? 'bg-[#b2cabd]/20 font-semibold text-[#1b2b41]'
+                  : 'text-[#75777d] hover:bg-[#e0e3e5]'
+              }`}
+            >
               <CheckCheck className="h-3.5 w-3.5" />
-              Trades
+              Takas
             </button>
-            <button className="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs text-[#75777d] transition-transform duration-200 hover:bg-[#e0e3e5] active:scale-95">
+            <button
+              onClick={() => setActiveFilter('system')}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 font-[Inter] text-xs transition-transform duration-200 active:scale-95 ${
+                activeFilter === 'system'
+                  ? 'bg-[#b2cabd]/20 font-semibold text-[#1b2b41]'
+                  : 'text-[#75777d] hover:bg-[#e0e3e5]'
+              }`}
+            >
               <Sparkles className="h-3.5 w-3.5" />
-              System
+              Sistem
             </button>
           </div>
 
           <div className="max-h-[400px] overflow-y-auto">
-            {loading && notifications.length === 0 && (
+            {loading && filteredNotifications.length === 0 && (
               <div className="flex justify-center py-10">
                 <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#e6e8ea] border-t-[#4d6359]"></div>
               </div>
             )}
 
-            {!loading && notifications.length === 0 && (
+            {!loading && filteredNotifications.length === 0 && (
               <div className="py-12 text-center">
                 <Bell className="mx-auto mb-3 h-10 w-10 text-[#c4c6cd]" />
                 <p className="text-sm font-semibold text-[#75777d]">
-                  Henüz bildiriminiz yok
+                  Bu sekmede gösterilecek bildirim yok
                 </p>
               </div>
             )}
 
-            {notifications.slice(0, 10).map((notif) => {
+            {visibleNotifications.map((notif) => {
               const style = typeStyles[notif.type] || typeStyles.INFO;
               const IconComponent = style.icon;
+              const target = getNotificationTarget(notif);
+              const isTradeNotification =
+                resolveNotificationCategory(notif) === 'trade' ||
+                resolveNotificationCategory(notif) === 'message';
 
               return (
-                <button
+                <div
                   key={notif.id}
                   onClick={() => handleNotificationClick(notif)}
-                  className={`group relative flex w-full gap-4 border-b border-[#f2f4f6] p-4 text-left transition-colors hover:bg-[#f7f9fb] last:border-0 ${notif.isRead ? 'opacity-80' : ''}`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleNotificationClick(notif);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  className={`group relative flex w-full cursor-pointer gap-4 border-b border-[#f2f4f6] p-4 text-left transition-colors hover:bg-[#f7f9fb] last:border-0 ${notif.isRead ? 'opacity-80' : ''}`}
                 >
-                  {/* Icon */}
                   <div
                     className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${notif.isRead ? 'bg-[#f2f4f6] text-[#75777d]' : `${style.bg} ${style.iconColor}`}`}
                   >
                     <IconComponent className="h-6 w-6" />
                   </div>
 
-                  {/* Content */}
                   <div className="flex min-w-0 flex-grow flex-col">
                     <div className="flex items-start justify-between">
                       <span className="truncate text-sm font-bold text-[#1b2b41]">
@@ -287,26 +368,29 @@ export default function NotificationBell() {
                       {notif.message}
                     </p>
 
-                    {/* Action Buttons based on context */}
-                    {notif.relatedId && notif.type === 'SUCCESS' && (
+                    {target && notif.type === 'SUCCESS' && (
                       <button
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
-                          navigate(`/items/${notif.relatedId}`);
+                          handleNotificationClick(notif);
                           setIsOpen(false);
                         }}
                         className="mt-3 w-full rounded-lg bg-[#4d6359] py-1.5 text-[11px] font-bold text-white transition-colors hover:bg-[#364b41]"
                       >
-                        Takas Sürecini Başlat
+                        {isTradeNotification
+                          ? 'Takas Detayına Git'
+                          : 'İlana Git'}
                       </button>
                     )}
 
-                    {notif.relatedId && notif.type !== 'SUCCESS' && (
+                    {target && notif.type !== 'SUCCESS' && (
                       <div className="mt-3 flex gap-3">
                         <button
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            navigate(`/items/${notif.relatedId}`);
+                            handleNotificationClick(notif);
                             setIsOpen(false);
                           }}
                           className="flex items-center gap-1.5 rounded-full bg-[#E0E7FF] px-3 py-1.5 text-[11px] font-medium text-[#4F46E5] transition-all hover:bg-[#D1D9FF] active:scale-95"
@@ -314,25 +398,37 @@ export default function NotificationBell() {
                           <ExternalLink className="h-3 w-3" />
                           Detay
                         </button>
+
+                        {!notif.isRead && (
+                          <button
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              await markNotificationAsRead(notif.id);
+                            }}
+                            className="rounded-full bg-[#f2f4f6] px-3 py-1.5 text-[11px] font-medium text-[#1b2b41] transition-all hover:bg-[#e6e8ea] active:scale-95"
+                          >
+                            Okundu yap
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* Unread Indicator */}
                   {!notif.isRead && (
                     <div className="absolute right-4 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[#b2cabd]" />
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
 
           <div className="bg-[#f2f4f6]/30 p-4 text-center">
             <button
-              onClick={() => setIsOpen(false)}
+              onClick={() => setShowAll((prev) => !prev)}
               className="inline-flex items-center gap-2 text-sm font-bold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
             >
-              Tüm Bildirimleri Gör
+              {showAll ? 'Daha Az Göster' : 'Tüm Bildirimleri Gör'}
               <ExternalLink className="h-4 w-4" />
             </button>
           </div>

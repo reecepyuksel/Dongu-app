@@ -304,54 +304,169 @@ const ItemDetail = () => {
   return (
     <>
       <div className="pt-24 pb-16 px-6 max-w-7xl mx-auto min-h-screen">
+        {isOwner && (
+          <div className="mb-6 flex items-center justify-between rounded-2xl border border-[#ffd7d3] bg-[#fff1f0] px-5 py-4">
+            <div>
+              <p className="text-sm font-bold text-[#93000a]">
+                Bu ilan sana ait
+              </p>
+              <p className="text-sm text-[#7a3d37]">
+                İstersen bu sayfadan ilanı kaldırabilirsin.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              className="inline-flex items-center gap-2 rounded-full bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              <Trash2 className="h-4 w-4" />
+              İlanı Sil
+            </button>
+          </div>
+        )}
+
         {item.shareType === 'exchange' ? (
           <ExchangeView
-            item={item} ownerName={ownerName} ownerInitial={ownerInitial}
-            canChat={canChat} itemImages={itemImages}
-            currentImageIndex={currentImageIndex} setCurrentImageIndex={setCurrentImageIndex}
-            setTradeModalOpen={setTradeModalOpen} isFavorited={isFavorited}
-            handleFavoriteToggle={handleFavoriteToggle} isOwner={isOwner}
+            item={item}
+            ownerName={ownerName}
+            ownerInitial={ownerInitial}
+            canChat={canChat}
+            itemImages={itemImages}
+            currentImageIndex={currentImageIndex}
+            setCurrentImageIndex={setCurrentImageIndex}
+            setTradeModalOpen={setTradeModalOpen}
+            isFavorited={isFavorited}
+            handleFavoriteToggle={handleFavoriteToggle}
+            isOwner={isOwner}
             tradeOfferCount={tradeOfferCount}
           />
         ) : item.shareType === 'request' || item.postType === 'REQUESTING' ? (
           <RequestView
-            item={item} ownerName={ownerName} ownerInitial={ownerInitial}
-            handleBendeVarClick={handleBendeVarClick} joining={joining}
-            isOwner={isOwner} isFavorited={isFavorited}
-            handleFavoriteToggle={handleFavoriteToggle} postedAgoStr={postedAgoStr}
+            item={item}
+            ownerName={ownerName}
+            ownerInitial={ownerInitial}
+            handleBendeVarClick={handleBendeVarClick}
+            joining={joining}
+            isOwner={isOwner}
+            isFavorited={isFavorited}
+            handleFavoriteToggle={handleFavoriteToggle}
+            postedAgoStr={postedAgoStr}
           />
         ) : (
           <GiveawayView
-            item={item} user={user} isAuthenticated={isAuthenticated}
-            isOwner={isOwner} isWinner={isWinner} canChat={canChat}
-            itemImages={itemImages} currentImageIndex={currentImageIndex}
-            setCurrentImageIndex={setCurrentImageIndex} setIsLightboxOpen={setIsLightboxOpen}
-            handleJoin={handleJoin} joining={joining} isJoined={isJoined}
-            isFavorited={isFavorited} handleFavoriteToggle={handleFavoriteToggle}
-            setConfirmModalOpen={setConfirmModalOpen} handleDeliveryUpdate={handleDeliveryUpdate}
-            postedAgoStr={postedAgoStr} timeAgoStr={timeAgoStr}
-            isEnded={isEnded} timeLeft={timeLeft} participants={participants}
+            item={item}
+            user={user}
+            isAuthenticated={isAuthenticated}
+            isOwner={isOwner}
+            isWinner={isWinner}
+            canChat={canChat}
+            itemImages={itemImages}
+            currentImageIndex={currentImageIndex}
+            setCurrentImageIndex={setCurrentImageIndex}
+            setIsLightboxOpen={setIsLightboxOpen}
+            handleJoin={handleJoin}
+            joining={joining}
+            isJoined={isJoined}
+            isFavorited={isFavorited}
+            handleFavoriteToggle={handleFavoriteToggle}
+            setConfirmModalOpen={setConfirmModalOpen}
+            handleDeliveryUpdate={handleDeliveryUpdate}
+            postedAgoStr={postedAgoStr}
+            timeAgoStr={timeAgoStr}
+            isEnded={isEnded}
+            timeLeft={timeLeft}
+            participants={participants}
           />
         )}
       </div>
 
-      <WinnerSelectionModal isOpen={winnerModalOpen} onClose={() => setWinnerModalOpen(false)} itemId={item.id} itemTitle={item.title} onSuccess={() => { fetchItem(); fetchUser(); }} />
-      <DeliveryConfirmModal isOpen={confirmModalOpen} onClose={() => setConfirmModalOpen(false)} itemId={item.id} onSuccess={() => { fetchItem(); fetchUser(); }} />
-      {item && <TradeOfferModal isOpen={tradeModalOpen} onClose={() => setTradeModalOpen(false)} targetItemId={item.id} targetItemTitle={item.title} onSuccess={() => { setTradeModalOpen(false); fetchItem(); }} />}
+      <WinnerSelectionModal
+        isOpen={winnerModalOpen}
+        onClose={() => setWinnerModalOpen(false)}
+        itemId={item.id}
+        itemTitle={item.title}
+        onSuccess={() => {
+          fetchItem();
+          fetchUser();
+        }}
+      />
+      <DeliveryConfirmModal
+        isOpen={confirmModalOpen}
+        onClose={() => setConfirmModalOpen(false)}
+        itemId={item.id}
+        onSuccess={() => {
+          fetchItem();
+          fetchUser();
+        }}
+      />
+      {item && (
+        <TradeOfferModal
+          isOpen={tradeModalOpen}
+          onClose={() => setTradeModalOpen(false)}
+          targetItemId={item.id}
+          targetItemTitle={item.title}
+          onSuccess={() => {
+            setTradeModalOpen(false);
+            fetchItem();
+          }}
+        />
+      )}
 
       <AnimatePresence>
         {isLightboxOpen && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-center"
+          >
             <div className="absolute top-0 w-full p-4 md:p-6 flex items-center justify-between z-[110]">
-              <span className="text-white font-medium bg-white/10 px-4 py-2 rounded-full backdrop-blur-md">{currentImageIndex + 1} / {itemImages.length}</span>
-              <button onClick={() => setIsLightboxOpen(false)} className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors backdrop-blur-md"><X className="w-6 h-6" /></button>
+              <span className="text-white font-medium bg-white/10 px-4 py-2 rounded-full backdrop-blur-md">
+                {currentImageIndex + 1} / {itemImages.length}
+              </span>
+              <button
+                onClick={() => setIsLightboxOpen(false)}
+                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors backdrop-blur-md"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
-            {itemImages.length > 1 && (<>
-              <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((p) => p === 0 ? itemImages.length - 1 : p - 1); }} className="absolute left-4 md:left-8 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white z-[110]"><ChevronLeft className="w-8 h-8 text-white/50 hover:text-white" /></button>
-              <button onClick={(e) => { e.stopPropagation(); setCurrentImageIndex((p) => p === itemImages.length - 1 ? 0 : p + 1); }} className="absolute right-4 md:right-8 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white z-[110]"><ChevronRight className="w-8 h-8 text-white/50 hover:text-white" /></button>
-            </>)}
-            <div className="w-full h-full max-w-6xl mx-auto p-4 md:p-12 flex items-center justify-center relative z-[105]" onClick={() => setIsLightboxOpen(false)}>
-              <img src={itemImages[currentImageIndex]} alt={item.title} className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-sm" onClick={(e) => e.stopPropagation()} />
+            {itemImages.length > 1 && (
+              <>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex((p) =>
+                      p === 0 ? itemImages.length - 1 : p - 1,
+                    );
+                  }}
+                  className="absolute left-4 md:left-8 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white z-[110]"
+                >
+                  <ChevronLeft className="w-8 h-8 text-white/50 hover:text-white" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentImageIndex((p) =>
+                      p === itemImages.length - 1 ? 0 : p + 1,
+                    );
+                  }}
+                  className="absolute right-4 md:right-8 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white z-[110]"
+                >
+                  <ChevronRight className="w-8 h-8 text-white/50 hover:text-white" />
+                </button>
+              </>
+            )}
+            <div
+              className="w-full h-full max-w-6xl mx-auto p-4 md:p-12 flex items-center justify-center relative z-[105]"
+              onClick={() => setIsLightboxOpen(false)}
+            >
+              <img
+                src={itemImages[currentImageIndex]}
+                alt={item.title}
+                className="max-w-full max-h-full object-contain drop-shadow-2xl rounded-sm"
+                onClick={(e) => e.stopPropagation()}
+              />
             </div>
           </motion.div>
         )}
@@ -360,14 +475,44 @@ const ItemDetail = () => {
       <AnimatePresence>
         {deleteConfirmOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setDeleteConfirmOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mb-6 mx-auto"><Trash2 className="w-8 h-8" /></div>
-              <h3 className="text-2xl font-bold text-slate-900 text-center mb-2 font-[Outfit]">İlanı Silmek İstiyor Musun?</h3>
-              <p className="text-slate-500 text-center mb-8 font-medium leading-relaxed">Bu işlem geri alınamaz. İlanınla birlikte tüm başvurular ve mesajlar da silinecektir.</p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+            >
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-600 mb-6 mx-auto">
+                <Trash2 className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 text-center mb-2 font-[Outfit]">
+                İlanı Silmek İstiyor Musun?
+              </h3>
+              <p className="text-slate-500 text-center mb-8 font-medium leading-relaxed">
+                Bu işlem geri alınamaz. İlanınla birlikte tüm başvurular ve
+                mesajlar da silinecektir.
+              </p>
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setDeleteConfirmOpen(false)} disabled={deleting} className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all">Vazgeç</button>
-                <button onClick={handleDelete} disabled={deleting} className="px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-center gap-2">{deleting ? 'Siliniyor...' : 'Evet, Sil'}</button>
+                <button
+                  onClick={() => setDeleteConfirmOpen(false)}
+                  disabled={deleting}
+                  className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-2xl shadow-lg shadow-red-600/20 transition-all flex items-center justify-center gap-2"
+                >
+                  {deleting ? 'Siliniyor...' : 'Evet, Sil'}
+                </button>
               </div>
             </motion.div>
           </div>
@@ -377,14 +522,42 @@ const ItemDetail = () => {
       <AnimatePresence>
         {requestConfirmOpen && (
           <div className="fixed inset-0 z-[115] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setRequestConfirmOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100">
-              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-6 mx-auto"><MessageCircle className="w-8 h-8" /></div>
-              <h3 className="text-2xl font-bold text-slate-900 text-center mb-2 font-[Outfit]">Sohbet Başlatılsın mı?</h3>
-              <p className="text-slate-500 text-center mb-8 font-medium leading-relaxed">Bu ihtiyacı karşılayabileceğinizi belirterek ilan sahibiyle doğrudan sohbet başlatacaksınız.</p>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setRequestConfirmOpen(false)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl relative z-10 border border-slate-100"
+            >
+              <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 mb-6 mx-auto">
+                <MessageCircle className="w-8 h-8" />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-900 text-center mb-2 font-[Outfit]">
+                Sohbet Başlatılsın mı?
+              </h3>
+              <p className="text-slate-500 text-center mb-8 font-medium leading-relaxed">
+                Bu ihtiyacı karşılayabileceğinizi belirterek ilan sahibiyle
+                doğrudan sohbet başlatacaksınız.
+              </p>
               <div className="grid grid-cols-2 gap-4">
-                <button onClick={() => setRequestConfirmOpen(false)} className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all">Vazgeç</button>
-                <button onClick={confirmStartRequestChat} className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 transition-all">Sohbeti Başlat</button>
+                <button
+                  onClick={() => setRequestConfirmOpen(false)}
+                  className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl transition-all"
+                >
+                  Vazgeç
+                </button>
+                <button
+                  onClick={confirmStartRequestChat}
+                  className="px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/20 transition-all"
+                >
+                  Sohbeti Başlat
+                </button>
               </div>
             </motion.div>
           </div>

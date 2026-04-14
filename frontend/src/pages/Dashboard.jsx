@@ -15,6 +15,7 @@ import {
   MoreVertical,
   Plus,
   Share2,
+  Trash2,
   Trophy,
   Truck,
   User,
@@ -41,6 +42,8 @@ const Dashboard = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
   const [selectedConfirmItemId, setSelectedConfirmItemId] = useState(null);
+  const [openItemMenuId, setOpenItemMenuId] = useState(null);
+  const [deletingItemId, setDeletingItemId] = useState(null);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -118,6 +121,31 @@ const Dashboard = () => {
       }
     } catch {
       showToast('Favori işlemi başarısız oldu.', 'error');
+    }
+  };
+
+  const handleDeleteItem = async (event, itemId, itemTitle) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const confirmed = window.confirm(
+      `"${itemTitle || 'Bu ilan'}" ilanını silmek istediğine emin misin? Bu işlem geri alınamaz.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingItemId(itemId);
+      await api.delete(`/giveaways/${itemId}`);
+      setMyItems((prev) => prev.filter((item) => item.id !== itemId));
+      setOpenItemMenuId(null);
+      showToast('İlan silindi.', 'success');
+    } catch (err) {
+      showToast(
+        err.response?.data?.message || 'İlan silinirken bir hata oluştu.',
+        'error',
+      );
+    } finally {
+      setDeletingItemId(null);
     }
   };
 
@@ -324,35 +352,55 @@ const Dashboard = () => {
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#05162b] shadow-sm transition-transform group-hover:scale-110">
                 <Grid2X2 className="h-6 w-6" />
               </div>
-              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">{myItems.length}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">Paylaşılan</p>
+              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">
+                {myItems.length}
+              </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">
+                Paylaşılan
+              </p>
             </div>
             <div className="group rounded-3xl bg-[#f2f4f6] p-6 text-center transition-all duration-300 hover:bg-white hover:shadow-xl">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#4d6359] shadow-sm transition-transform group-hover:scale-110">
                 <ArrowLeftRight className="h-6 w-6" />
               </div>
-              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">{successfulTradesCount}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">Takas</p>
+              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">
+                {successfulTradesCount}
+              </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">
+                Takas
+              </p>
             </div>
-            <div className={`group rounded-3xl bg-[#f2f4f6] p-6 text-center transition-all duration-300 hover:bg-white hover:shadow-xl ${newOwnerCount === 0 ? 'opacity-60' : ''}`}>
+            <div
+              className={`group rounded-3xl bg-[#f2f4f6] p-6 text-center transition-all duration-300 hover:bg-white hover:shadow-xl ${newOwnerCount === 0 ? 'opacity-60' : ''}`}
+            >
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-red-400 shadow-sm transition-transform group-hover:scale-110">
                 <HandHeart className="h-6 w-6" />
               </div>
-              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">{newOwnerCount}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">İhtiyaç Giderilen</p>
+              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">
+                {newOwnerCount}
+              </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">
+                İhtiyaç Giderilen
+              </p>
             </div>
             <div className="group rounded-3xl bg-[#f2f4f6] p-6 text-center transition-all duration-300 hover:bg-white hover:shadow-xl">
               <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#82db7e] shadow-sm transition-transform group-hover:scale-110">
                 <Medal className="h-6 w-6" />
               </div>
-              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">2</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">Kazanılan</p>
+              <p className="font-[Manrope] text-2xl font-extrabold text-[#05162b]">
+                2
+              </p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-wider text-[#75777d]">
+                Kazanılan
+              </p>
             </div>
           </div>
 
           <section>
             <div className="mb-6 flex items-center justify-between">
-              <h3 className="font-[Manrope] text-xl font-extrabold text-[#05162b]">Döngüye Kattıklarım</h3>
+              <h3 className="font-[Manrope] text-xl font-extrabold text-[#05162b]">
+                Döngüye Kattıklarım
+              </h3>
               <button
                 onClick={() => setActiveTab('items')}
                 className="text-sm font-semibold text-[#4d6359] hover:underline underline-offset-4"
@@ -367,48 +415,85 @@ const Dashboard = () => {
                 </div>
               ) : (
                 latestItems.map((item) => (
-                  <Link
-                    to={`/items/${item.id}`}
+                  <div
                     key={item.id}
-                    className="group flex items-center gap-6 rounded-2xl bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                    className="group relative rounded-2xl bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f2f4f6]">
-                      <img
-                        src={item.imageUrl || 'https://via.placeholder.com/80'}
-                        alt={item.title}
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center gap-3">
-                        <h4 className="truncate font-bold text-[#05162b]">{item.title}</h4>
-                        <span
-                          className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
-                            statusColors[item.status] || 'bg-[#eceef0] text-[#44474d]'
-                          }`}
-                        >
-                          {statusLabels[item.status] || item.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#75777d]">
-                        {item.category || 'Genel'} kategorisinde paylaşıldı.
-                      </p>
-                      <div className="mt-3 flex items-center gap-4 text-[#9aa0a6]">
-                        <span className="flex items-center gap-1.5 text-xs">
-                          <Eye className="h-4 w-4" /> {item.viewCount || 0}
-                        </span>
-                        <span className="flex items-center gap-1.5 text-xs">
-                          <Heart className="h-4 w-4" /> {item.favCount || item.applicationsCount || 0}
-                        </span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={(e) => e.preventDefault()}
-                      className="shrink-0 p-2 text-[#9aa0a6] transition hover:text-[#05162b]"
+                    <Link
+                      to={`/items/${item.id}`}
+                      className="flex items-center gap-6"
                     >
-                      <MoreVertical className="h-5 w-5" />
-                    </button>
-                  </Link>
+                      <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-[#f2f4f6]">
+                        <img
+                          src={
+                            item.imageUrl || 'https://via.placeholder.com/80'
+                          }
+                          alt={item.title}
+                          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 pr-10">
+                        <div className="mb-1 flex items-center gap-3">
+                          <h4 className="truncate font-bold text-[#05162b]">
+                            {item.title}
+                          </h4>
+                          <span
+                            className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold uppercase ${
+                              statusColors[item.status] ||
+                              'bg-[#eceef0] text-[#44474d]'
+                            }`}
+                          >
+                            {statusLabels[item.status] || item.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[#75777d]">
+                          {item.category || 'Genel'} kategorisinde paylaşıldı.
+                        </p>
+                        <div className="mt-3 flex items-center gap-4 text-[#9aa0a6]">
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <Eye className="h-4 w-4" /> {item.viewCount || 0}
+                          </span>
+                          <span className="flex items-center gap-1.5 text-xs">
+                            <Heart className="h-4 w-4" />{' '}
+                            {item.favCount || item.applicationsCount || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setOpenItemMenuId((prev) =>
+                            prev === item.id ? null : item.id,
+                          );
+                        }}
+                        className="rounded-full p-2 text-[#9aa0a6] transition hover:bg-[#f2f4f6] hover:text-[#05162b]"
+                        aria-label="İlan menüsü"
+                      >
+                        <MoreVertical className="h-5 w-5" />
+                      </button>
+
+                      {openItemMenuId === item.id && (
+                        <div className="absolute right-0 top-12 z-20 min-w-[160px] rounded-xl border border-[#e6e8ea] bg-white p-2 shadow-xl">
+                          <button
+                            onClick={(e) =>
+                              handleDeleteItem(e, item.id, item.title)
+                            }
+                            disabled={deletingItemId === item.id}
+                            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#93000a] transition hover:bg-[#fff1f0] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            {deletingItemId === item.id
+                              ? 'Siliniyor...'
+                              : 'İlanı Sil'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ))
               )}
             </div>
@@ -422,7 +507,8 @@ const Dashboard = () => {
                   Senin Değerlerin Başkasının İhtiyacı Olabilir
                 </h3>
                 <p className="mt-4 text-lg text-[#b7c7e4]">
-                  Hemen yeni bir eşyanı listele, topluluğa katkıda bulun ve puanlarını artır.
+                  Hemen yeni bir eşyanı listele, topluluğa katkıda bulun ve
+                  puanlarını artır.
                 </p>
               </div>
               <button
@@ -487,11 +573,44 @@ const Dashboard = () => {
               myItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[1.25rem] bg-white p-4 shadow-[0_12px_32px_rgba(25,28,30,0.04)]"
+                  className="relative rounded-[1.25rem] bg-white p-4 shadow-[0_12px_32px_rgba(25,28,30,0.04)]"
                 >
+                  <div className="absolute right-4 top-4 z-10">
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setOpenItemMenuId((prev) =>
+                          prev === item.id ? null : item.id,
+                        );
+                      }}
+                      className="rounded-full p-2 text-[#9aa0a6] transition hover:bg-[#f2f4f6] hover:text-[#05162b]"
+                      aria-label="İlan menüsü"
+                    >
+                      <MoreVertical className="h-5 w-5" />
+                    </button>
+
+                    {openItemMenuId === item.id && (
+                      <div className="absolute right-0 top-12 min-w-[160px] rounded-xl border border-[#e6e8ea] bg-white p-2 shadow-xl">
+                        <button
+                          onClick={(e) =>
+                            handleDeleteItem(e, item.id, item.title)
+                          }
+                          disabled={deletingItemId === item.id}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#93000a] transition hover:bg-[#fff1f0] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          {deletingItemId === item.id
+                            ? 'Siliniyor...'
+                            : 'İlanı Sil'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   <Link
                     to={`/items/${item.id}`}
-                    className="group flex items-center gap-4"
+                    className="group flex items-center gap-4 pr-14"
                   >
                     <img
                       src={item.imageUrl || 'https://via.placeholder.com/100'}

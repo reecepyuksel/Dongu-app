@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  Check,
   ChevronLeft,
   ChevronRight,
   Inbox,
-  MessageCircle,
   Search,
+  Trash2,
   X,
   User,
   Filter,
@@ -19,21 +18,6 @@ import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
-const statusConfig = {
-  pending: {
-    label: 'Beklemede',
-    className: 'bg-[#fff3e0] text-[#a15f00]',
-  },
-  accepted: {
-    label: 'Kabul Edildi',
-    className: 'bg-[#d0e8db] text-[#364b41]',
-  },
-  rejected: {
-    label: 'Reddedildi',
-    className: 'bg-[#ffdad6] text-[#93000a]',
-  },
-};
-
 const Trades = () => {
   const navigate = useNavigate();
   const { isAuthenticated, loading: authLoading, user } = useAuth();
@@ -43,6 +27,7 @@ const Trades = () => {
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [deletingItemId, setDeletingItemId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [lightbox, setLightbox] = useState({
     open: false,
@@ -161,12 +146,6 @@ const Trades = () => {
     });
   }, [outgoingOffers, searchTerm]);
 
-  const pendingCount = useMemo(
-    () =>
-      incomingOffers.filter((offer) => offer.tradeStatus === 'pending').length,
-    [incomingOffers],
-  );
-
   const closeLightbox = () => {
     setLightbox({ open: false, images: [], index: 0, title: '' });
   };
@@ -243,6 +222,32 @@ const Trades = () => {
     }
   };
 
+  const handleDeleteListing = async (itemId, itemTitle) => {
+    if (!itemId) {
+      showToast('Silinecek ilan bulunamadı.', 'error');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `"${itemTitle || 'Bu ilan'}" ilanını silmek istediğine emin misin? Bu işlem geri alınamaz.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setDeletingItemId(itemId);
+      await api.delete(`/giveaways/${itemId}`);
+      setOffers((prev) => prev.filter((offer) => offer.item?.id !== itemId));
+      showToast('İlan silindi.', 'success');
+    } catch (error) {
+      showToast(
+        error.response?.data?.message || 'İlan silinirken bir hata oluştu.',
+        'error',
+      );
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
   const renderEmptyState = (type) => (
     <div className="col-span-full hidden flex-col items-center justify-center py-20 text-center sm:flex">
       <div className="mb-8 flex h-48 w-48 items-center justify-center rounded-full bg-[#f2f4f6]">
@@ -270,7 +275,9 @@ const Trades = () => {
   const renderOfferCard = (offer, type) => {
     const isPendingIncoming =
       type === 'incoming' && offer.tradeStatus === 'pending';
-    const offerTitle = offer.offeredItem?.title || offer.content || 'Takas Teklifi';
+    const isDeletingCurrentItem = deletingItemId === offer.item?.id;
+    const offerTitle =
+      offer.offeredItem?.title || offer.content || 'Takas Teklifi';
     const partner = type === 'incoming' ? offer.sender : offer.partner;
 
     let statusLabel = 'BEKLEMEDE';
@@ -293,7 +300,9 @@ const Trades = () => {
         key={offer.id}
         className={`group flex flex-col rounded-xl bg-white p-5 transition-all hover:scale-[1.02] hover:shadow-[0px_12px_32px_rgba(25,28,30,0.06)] ${cardClass}`}
       >
-        <div className={`relative mb-6 h-48 w-full overflow-hidden rounded-lg bg-[#f2f4f6] ${imgContainerClass}`}>
+        <div
+          className={`relative mb-6 h-48 w-full overflow-hidden rounded-lg bg-[#f2f4f6] ${imgContainerClass}`}
+        >
           {offer.photoUrl ? (
             <button
               type="button"
@@ -354,7 +363,8 @@ const Trades = () => {
             {offer.item?.title || 'Bilinmeyen İlan'}
           </h3>
           <p className="flex items-center gap-1 font-[Inter] text-sm text-[#51675d]">
-            Teklif: <span className="font-bold text-[#05162b]">{offerTitle}</span>
+            Teklif:{' '}
+            <span className="font-bold text-[#05162b]">{offerTitle}</span>
           </p>
         </div>
 
@@ -378,6 +388,19 @@ const Trades = () => {
                 Kabul Et
               </button>
             </div>
+          )}
+          {type === 'incoming' && (
+            <button
+              type="button"
+              onClick={() =>
+                handleDeleteListing(offer.item?.id, offer.item?.title)
+              }
+              disabled={isDeletingCurrentItem}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#ffdad6] py-3 text-sm font-semibold text-[#93000a] transition-all hover:bg-[#ffb4ab] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 className="h-4 w-4" />
+              {isDeletingCurrentItem ? 'Siliniyor...' : 'İlanı Sil'}
+            </button>
           )}
           <Link
             to={`/trades/${offer.id}`}
@@ -459,6 +482,18 @@ const Trades = () => {
           <Filter className="h-5 w-5" />
           Filtrele
         </button>
+      </div>
+
+      <div
+        className={`mb-6 rounded-xl px-4 py-3 text-sm ${
+          activeTab === 'incoming'
+            ? 'bg-[#fff3e0] text-[#8a5700]'
+            : 'bg-[#edf2f7] text-[#40556b]'
+        }`}
+      >
+        {activeTab === 'incoming'
+          ? 'Kendi ilanını kaldırmak için kartın altındaki "İlanı Sil" butonunu kullanabilirsin.'
+          : 'Bu sekme sadece senin gönderdiğin teklifler. Silme işlemi, ilan sahibinde olduğu için burada görünmez.'}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
