@@ -78,6 +78,15 @@ export class MessagesGateway
     }
   }
 
+  notifyNotification(toUserId: string, notificationPayload: any) {
+    const targetSocketId = this.connectedUsers.get(toUserId.toString());
+    if (targetSocketId) {
+      this.server
+        .to(targetSocketId)
+        .emit('newNotification', notificationPayload);
+    }
+  }
+
   // Notifies the recipient that a single message was deleted (soft-delete)
   notifyDeleteMessage(toUserId: string, messageId: string) {
     const targetSocketId = this.connectedUsers.get(toUserId.toString());

@@ -6,6 +6,7 @@ import {
   Inject,
   forwardRef,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, In } from 'typeorm';
 import { Message, TradeStatus } from './entities/message.entity';
@@ -16,9 +17,13 @@ import { NotificationType } from '../notifications/entities/notification.entity'
 import { MessagesGateway } from './messages.gateway';
 import { BlockedUser } from './entities/blocked-user.entity';
 import { Report } from './entities/report.entity';
+import { AppCacheService } from '../common/redis/app-cache.service';
+import { EventMetricsService } from '../common/events/event-metrics.service';
 
 @Injectable()
 export class MessagesService {
+  private readonly useEventBasedMetrics: boolean;
+
   constructor(
     @InjectRepository(Message)
     private messagesRepository: Repository<Message>,
@@ -33,7 +38,29 @@ export class MessagesService {
     @Inject(forwardRef(() => NotificationsService))
     private notificationsService: NotificationsService,
     private messagesGateway: MessagesGateway,
-  ) {}
+    private appCacheService: AppCacheService,
+    private eventMetricsService: EventMetricsService,
+    private configService: ConfigService,
+  ) {
+    this.useEventBasedMetrics =
+      this.configService.get<string>('USE_EVENT_BASED_METRICS', 'false') ===
+      'true';
+  }
+
+  private async invalidateMessageCaches(userIds: string[]) {
+    const unique = Array.from(new Set(userIds.filter(Boolean)));
+    if (!unique.length) return;
+
+    await Promise.all(
+      unique.map((userId) =>
+        Promise.all([
+          this.appCacheService.invalidateChatUnreadCount(userId),
+          this.appCacheService.invalidateConversations(userId),
+          this.appCacheService.invalidateTradeOffers(userId),
+        ]),
+      ),
+    );
+  }
 
   private async isBlockedBetween(userAId: string, userBId: string) {
     const blocked = await this.blockedUsersRepository.findOne({
@@ -67,6 +94,7 @@ export class MessagesService {
 
     const record = this.blockedUsersRepository.create({ blocker, blocked });
     await this.blockedUsersRepository.save(record);
+    await this.invalidateMessageCaches([blockerId, blockedId]);
     return { success: true };
   }
 
@@ -75,6 +103,7 @@ export class MessagesService {
       blocker: { id: blockerId },
       blocked: { id: blockedId },
     });
+    await this.invalidateMessageCaches([blockerId, blockedId]);
     return { success: true };
   }
 
@@ -260,6 +289,14 @@ export class MessagesService {
           result.receiver.id,
           this.sanitizeMessageForClient(result),
         );
+        await this.eventMetricsService.recordMessageEvent({
+          messageId: result.id,
+          senderId: result.sender.id,
+          receiverId: result.receiver.id,
+          itemId: result.item?.id,
+          eventType: 'trade_offer_sent',
+          sourceId: result.id,
+        });
         await this.notificationsService.createNotification(
           result.receiver.id,
           '🔄 Yeni Takas Teklifi',
@@ -267,6 +304,10 @@ export class MessagesService {
           NotificationType.INFO,
           `${result.item?.id}?chatWith=${result.sender.id}`,
         );
+        await this.invalidateMessageCaches([
+          result.sender.id,
+          result.receiver.id,
+        ]);
       }
 
       return this.sanitizeMessageForClient({
@@ -306,6 +347,15 @@ export class MessagesService {
       message.tradeStatus = TradeStatus.REJECTED;
       await this.messagesRepository.save(message);
 
+      await this.eventMetricsService.recordMessageEvent({
+        messageId: message.id,
+        senderId: message.sender?.id,
+        receiverId: message.receiver?.id,
+        itemId: message.item?.id,
+        eventType: 'trade_offer_rejected',
+        sourceId: message.id,
+      });
+
       // System message for trade chat
       const rejectedSystem = this.messagesRepository.create({
         item: message.item ? { id: message.item.id } : null,
@@ -339,6 +389,10 @@ export class MessagesService {
         NotificationType.INFO,
         message.item?.id,
       );
+      await this.invalidateMessageCaches([
+        message.sender.id,
+        message.receiver.id,
+      ]);
       return message;
     } else if (status === 'accepted') {
       if (!message.item)
@@ -386,6 +440,15 @@ export class MessagesService {
       message.tradeStatus = TradeStatus.ACCEPTED;
       await this.messagesRepository.save(message);
 
+      await this.eventMetricsService.recordMessageEvent({
+        messageId: message.id,
+        senderId: message.sender?.id,
+        receiverId: message.receiver?.id,
+        itemId: message.item?.id,
+        eventType: 'trade_offer_accepted',
+        sourceId: message.id,
+      });
+
       await this.notificationsService.createNotification(
         message.sender.id,
         '🎉 Takas Teklifi Kabul Edildi!',
@@ -423,6 +486,12 @@ export class MessagesService {
           tradeOfferId: message.id,
         });
       }
+
+      await this.invalidateMessageCaches([
+        message.sender.id,
+        message.receiver.id,
+      ]);
+      await this.appCacheService.invalidateItemsList();
 
       return message;
     }
@@ -518,6 +587,14 @@ export class MessagesService {
 
     // Notify receiver of new message
     if (result.receiver && result.sender) {
+      await this.eventMetricsService.recordMessageEvent({
+        messageId: result.id,
+        senderId: result.sender.id,
+        receiverId: result.receiver.id,
+        itemId: result.item?.id,
+        eventType: 'item_message_sent',
+        sourceId: result.id,
+      });
       const senderName = result.sender.fullName || 'Biri';
       await this.notificationsService.createNotification(
         result.receiver.id,
@@ -526,6 +603,11 @@ export class MessagesService {
         NotificationType.INFO,
         result.item ? result.item.id : undefined,
       );
+
+      await this.invalidateMessageCaches([
+        result.sender.id,
+        result.receiver.id,
+      ]);
     }
 
     return this.sanitizeMessageForClient(result);
@@ -644,12 +726,31 @@ export class MessagesService {
       );
     }
 
+    if (result.sender && result.receiver) {
+      await this.eventMetricsService.recordMessageEvent({
+        messageId: result.id,
+        senderId: result.sender.id,
+        receiverId: result.receiver.id,
+        eventType: 'direct_message_sent',
+        sourceId: result.id,
+      });
+      await this.invalidateMessageCaches([
+        result.sender.id,
+        result.receiver.id,
+      ]);
+    }
+
     return this.sanitizeMessageForClient(result);
   }
 
   // Tüm aktif konuşmalar (Kişi bazlı gruplama)
   async getMyConversations(userId: string) {
     try {
+      const cached = await this.appCacheService.getConversations(userId);
+      if (cached) {
+        return cached;
+      }
+
       const blockRelations = await this.blockedUsersRepository.find({
         where: [{ blocker: { id: userId } }, { blocked: { id: userId } }],
         relations: ['blocker', 'blocked'],
@@ -661,63 +762,99 @@ export class MessagesService {
         ),
       );
 
-      const messages = await this.messagesRepository
-        .createQueryBuilder('msg')
-        .leftJoinAndSelect('msg.item', 'item')
-        .leftJoinAndSelect('msg.sender', 'sender')
-        .leftJoinAndSelect('msg.receiver', 'receiver')
-        .where('sender.id = :userId OR receiver.id = :userId', { userId })
-        .andWhere('msg.isTradeOffer = false')
-        .andWhere('msg.tradeOfferId IS NULL')
-        .andWhere('msg.isDeleted = :isDeleted', { isDeleted: false })
-        .orderBy('msg.createdAt', 'DESC')
-        .getMany();
+      const latestPerUser = await this.messagesRepository.query(
+        `
+        WITH scoped AS (
+          SELECT
+            msg.id,
+            msg.content,
+            msg."createdAt",
+            msg."itemId",
+            CASE
+              WHEN msg."senderId" = $1 THEN msg."receiverId"
+              ELSE msg."senderId"
+            END AS "otherUserId"
+          FROM message msg
+          WHERE (msg."senderId" = $1 OR msg."receiverId" = $1)
+            AND msg."isTradeOffer" = false
+            AND msg."tradeOfferId" IS NULL
+            AND msg."isDeleted" = false
+            AND msg."senderId" IS NOT NULL
+        )
+        SELECT DISTINCT ON (s."otherUserId")
+          s."otherUserId" AS "otherUserId",
+          s.content AS "lastMessage",
+          s."createdAt" AS "lastMessageAt",
+          s."itemId" AS "itemId",
+          i.title AS "itemTitle",
+          i."imageUrl" AS "itemImageUrl",
+          u."fullName" AS "otherUserFullName",
+          u."avatarUrl" AS "otherUserAvatarUrl",
+          u."trustScore" AS "otherUserTrustScore",
+          u."isEmailVerified" AS "otherUserIsEmailVerified",
+          u."isPhoneVerified" AS "otherUserIsPhoneVerified"
+        FROM scoped s
+        LEFT JOIN item i ON i.id = s."itemId"
+        LEFT JOIN "user" u ON u.id = s."otherUserId"
+        ORDER BY s."otherUserId", s."createdAt" DESC
+        `,
+        [userId],
+      );
 
-      // Konuşmaları KİŞİ bazlı grupla
-      const conversationMap = new Map();
+      const unreadRows = await this.messagesRepository.query(
+        `
+        SELECT
+          CASE
+            WHEN msg."senderId" = $1 THEN msg."receiverId"
+            ELSE msg."senderId"
+          END AS "otherUserId",
+          COUNT(*) FILTER (
+            WHERE msg."receiverId" = $1
+              AND msg."isRead" = false
+          ) AS "unreadCount"
+        FROM message msg
+        WHERE (msg."senderId" = $1 OR msg."receiverId" = $1)
+          AND msg."isTradeOffer" = false
+          AND msg."tradeOfferId" IS NULL
+          AND msg."isDeleted" = false
+          AND msg."senderId" IS NOT NULL
+        GROUP BY 1
+        `,
+        [userId],
+      );
 
-      for (const msg of messages) {
-        // Sistem mesajlarını atla
-        if (!msg.sender) continue;
+      const unreadMap = new Map<string, number>(
+        unreadRows.map((row: any) => [
+          row.otherUserId,
+          parseInt(row.unreadCount, 10) || 0,
+        ]),
+      );
 
-        const otherUser = msg.sender.id === userId ? msg.receiver : msg.sender;
+      const rows = latestPerUser
+        .filter(
+          (row: any) => row.otherUserId && !blockedUserIds.has(row.otherUserId),
+        )
+        .map((row: any) => ({
+          conversationId: row.otherUserId,
+          itemId: row.itemId || 'direct',
+          itemTitle: row.itemTitle || 'Direkt Mesaj',
+          itemImageUrl: row.itemImageUrl || null,
+          lastMessage: row.lastMessage,
+          lastMessageAt: row.lastMessageAt,
+          unreadCount: unreadMap.get(row.otherUserId) || 0,
+          otherUser: {
+            id: row.otherUserId,
+            fullName: row.otherUserFullName,
+            avatarUrl: row.otherUserAvatarUrl,
+            trustScore: Number(row.otherUserTrustScore || 0),
+            isVerifiedAccount: Boolean(
+              row.otherUserIsEmailVerified && row.otherUserIsPhoneVerified,
+            ),
+          },
+        }));
 
-        if (!otherUser) continue;
-        if (blockedUserIds.has(otherUser.id)) continue;
-
-        // Benzersiz anahtar: Sadece Karşıdaki Kullanıcı ID
-        const key = otherUser.id;
-
-        if (!conversationMap.has(key)) {
-          conversationMap.set(key, {
-            conversationId: key, // Frontend için unique key (artık userId)
-            itemId: msg.item ? msg.item.id : 'direct', // En son konuşulan ilan ID'si
-            itemTitle: msg.item ? msg.item.title : 'Direkt Mesaj', // En son konuşulan ilan başlığı
-            itemImageUrl: msg.item ? msg.item.imageUrl : null,
-            lastMessage: msg.content,
-            lastMessageAt: msg.createdAt,
-            unreadCount: 0,
-            otherUser: {
-              id: otherUser.id,
-              fullName: otherUser.fullName,
-              avatarUrl: otherUser.avatarUrl,
-              trustScore: otherUser.trustScore,
-              isVerifiedAccount: Boolean(
-                otherUser.isEmailVerified && otherUser.isPhoneVerified,
-              ),
-            },
-          });
-        }
-
-        // Okunmamış mesaj sayısını hesapla
-        // Bu kişiyle olan TÜM okunmamış mesajları say
-        if (msg.receiver && msg.receiver.id === userId && !msg.isRead) {
-          const conv = conversationMap.get(key);
-          conv.unreadCount += 1;
-        }
-      }
-
-      return Array.from(conversationMap.values());
+      await this.appCacheService.setConversations(userId, rows, 20);
+      return rows;
     } catch (error) {
       console.error('Error in getMyConversations:', error);
       throw error;
@@ -727,6 +864,11 @@ export class MessagesService {
   // Yeni: Sadece Takas Teklifleri
   async getMyTradeOffers(userId: string) {
     try {
+      const cached = await this.appCacheService.getTradeOffers(userId);
+      if (cached) {
+        return cached;
+      }
+
       const messages = await this.messagesRepository
         .createQueryBuilder('msg')
         .leftJoinAndSelect('msg.item', 'item')
@@ -738,43 +880,54 @@ export class MessagesService {
         .orderBy('msg.createdAt', 'DESC')
         .getMany();
 
-      // Mümkün olan asıl Offered Item bilgilerini zenginleştirelim (Frontend'e kolaylık)
-      const enhancedMessages = await Promise.all(
-        messages.map(async (msg) => {
-          let offeredItemData: any = null;
-          if (msg.tradeOfferedItemId) {
-            const offeredItem = await this.itemsRepository.findOne({
-              where: { id: msg.tradeOfferedItemId },
-              relations: ['owner'],
-            });
-            if (offeredItem) {
-              offeredItemData = {
-                id: offeredItem.id,
-                title: offeredItem.title,
-                imageUrl:
-                  offeredItem.imageUrl ||
-                  (offeredItem.images && offeredItem.images[0]) ||
-                  null,
-              };
-            }
-          }
-          return this.sanitizeMessageForClient({
-            ...msg,
-            photoUrl:
-              msg.tradeMediaUrls?.[0] ||
-              msg.tradeMediaUrl ||
-              offeredItemData?.imageUrl ||
-              null,
-            photos:
-              msg.tradeMediaUrls ||
-              (msg.tradeMediaUrl ? [msg.tradeMediaUrl] : []),
-            offeredItem: offeredItemData,
-            otherUser: this.sanitizeUserForClient(
-              msg.sender?.id === userId ? msg.receiver : msg.sender,
-            ),
-          });
-        }),
+      const offeredItemIds = Array.from(
+        new Set(
+          messages
+            .map((msg) => msg.tradeOfferedItemId)
+            .filter((id): id is string => Boolean(id)),
+        ),
       );
+
+      const offeredItems = offeredItemIds.length
+        ? await this.itemsRepository.find({
+            where: { id: In(offeredItemIds) },
+            select: ['id', 'title', 'imageUrl', 'images'],
+          })
+        : [];
+
+      const offeredItemsMap = new Map(
+        offeredItems.map((item) => [
+          item.id,
+          {
+            id: item.id,
+            title: item.title,
+            imageUrl: item.imageUrl || (item.images && item.images[0]) || null,
+          },
+        ]),
+      );
+
+      // Mümkün olan asıl Offered Item bilgilerini zenginleştirelim (Frontend'e kolaylık)
+      const enhancedMessages = messages.map((msg) => {
+        const offeredItemData = msg.tradeOfferedItemId
+          ? offeredItemsMap.get(msg.tradeOfferedItemId) || null
+          : null;
+
+        return this.sanitizeMessageForClient({
+          ...msg,
+          photoUrl:
+            msg.tradeMediaUrls?.[0] ||
+            msg.tradeMediaUrl ||
+            offeredItemData?.imageUrl ||
+            null,
+          photos:
+            msg.tradeMediaUrls ||
+            (msg.tradeMediaUrl ? [msg.tradeMediaUrl] : []),
+          offeredItem: offeredItemData,
+          otherUser: this.sanitizeUserForClient(
+            msg.sender?.id === userId ? msg.receiver : msg.sender,
+          ),
+        });
+      });
 
       console.log(
         'getMyTradeOffers photoUrl kontrolü:',
@@ -785,6 +938,7 @@ export class MessagesService {
         })),
       );
 
+      await this.appCacheService.setTradeOffers(userId, enhancedMessages, 20);
       return enhancedMessages;
     } catch (error) {
       console.error('Error in getMyTradeOffers:', error);
@@ -877,6 +1031,8 @@ export class MessagesService {
     if (otherId) {
       this.messagesGateway.notifyDeleteMessage(otherId, messageId);
     }
+
+    await this.invalidateMessageCaches([userId, otherId || '']);
   }
 
   // Takasa özel mesaj gönder
@@ -938,11 +1094,31 @@ export class MessagesService {
       });
     }
 
+    if (result?.sender && result?.receiver) {
+      await this.eventMetricsService.recordMessageEvent({
+        messageId: result.id,
+        senderId: result.sender.id,
+        receiverId: result.receiver.id,
+        itemId: result.item?.id,
+        eventType: 'trade_message_sent',
+        sourceId: result.id,
+      });
+      await this.invalidateMessageCaches([
+        result.sender.id,
+        result.receiver.id,
+      ]);
+    }
+
     return this.sanitizeMessageForClient(result!);
   }
 
   // Yeni: Toplam okunmamış mesaj sayısı (sistem mesajlarını hariç tut)
   async getUnreadTotal(userId: string): Promise<{ totalUnread: number }> {
+    const cached = await this.appCacheService.getChatUnreadCount(userId);
+    if (cached) {
+      return cached;
+    }
+
     const count = await this.messagesRepository.count({
       where: {
         receiver: { id: userId },
@@ -953,6 +1129,8 @@ export class MessagesService {
         isRead: false,
       },
     });
+
+    await this.appCacheService.setChatUnreadCount(userId, count, 20);
     return { totalUnread: count };
   }
 
@@ -968,6 +1146,8 @@ export class MessagesService {
       },
       { isRead: true },
     );
+
+    await this.invalidateMessageCaches([userId]);
   }
 
   // Kişi bazlı konuşmayı okundu olarak işaretle
@@ -981,6 +1161,8 @@ export class MessagesService {
       },
       { isRead: true },
     );
+
+    await this.invalidateMessageCaches([userId, otherUserId]);
   }
 
   // Konuşmayı sil (kullanıcının bu ilandaki tüm mesajlarını siler)
@@ -1014,6 +1196,8 @@ export class MessagesService {
       this.messagesGateway.notifyConversationDeleted(otherUserId, userId);
     }
 
+    await this.invalidateMessageCaches([userId, otherUserId || '']);
+
     return { deleted: result.affected || 0 };
   }
 
@@ -1034,6 +1218,8 @@ export class MessagesService {
 
     // Karşı tarafı gerçek zamanlı bildir
     this.messagesGateway.notifyConversationDeleted(otherUserId, userId);
+
+    await this.invalidateMessageCaches([userId, otherUserId]);
 
     return { deleted: result.affected || 0 };
   }
@@ -1086,5 +1272,116 @@ export class MessagesService {
         offeredItem, // Eğer fiziksel eşya teklif edildiyse bu dolacak, değilse null
       };
     });
+  }
+
+  async getMetricsSummary() {
+    if (this.useEventBasedMetrics) {
+      const [summaryRows, topSenders, topReceivers] = await Promise.all([
+        this.messagesRepository.query(`
+          SELECT
+            COUNT(*) FILTER (WHERE created_at >= now() - interval '24 hours') AS "events24h",
+            COUNT(*) FILTER (WHERE created_at >= now() - interval '7 days') AS "events7d",
+            COUNT(*) FILTER (
+              WHERE event_type = 'trade_offer_sent'
+                AND created_at >= now() - interval '24 hours'
+            ) AS "tradeOffers24h",
+            COUNT(*) FILTER (
+              WHERE event_type IN ('item_message_sent', 'direct_message_sent', 'trade_message_sent')
+                AND created_at >= now() - interval '24 hours'
+            ) AS "messages24h"
+          FROM message_event
+        `),
+        this.messagesRepository.query(`
+          SELECT sender_id AS "userId", COUNT(*)::int AS total
+          FROM message_event
+          WHERE sender_id IS NOT NULL
+            AND created_at >= now() - interval '24 hours'
+          GROUP BY sender_id
+          ORDER BY total DESC
+          LIMIT 5
+        `),
+        this.messagesRepository.query(`
+          SELECT receiver_id AS "userId", COUNT(*)::int AS total
+          FROM message_event
+          WHERE receiver_id IS NOT NULL
+            AND created_at >= now() - interval '24 hours'
+          GROUP BY receiver_id
+          ORDER BY total DESC
+          LIMIT 5
+        `),
+      ]);
+
+      return {
+        source: 'message_event',
+        summary: {
+          events24h: Number(summaryRows[0]?.events24h || 0),
+          events7d: Number(summaryRows[0]?.events7d || 0),
+          tradeOffers24h: Number(summaryRows[0]?.tradeOffers24h || 0),
+          messages24h: Number(summaryRows[0]?.messages24h || 0),
+        },
+        topSenders,
+        topReceivers,
+      };
+    }
+
+    const [
+      messageCount24h,
+      messageCount7d,
+      tradeOffers24h,
+      topSenders,
+      topReceivers,
+    ] = await Promise.all([
+      this.messagesRepository.query(`
+          SELECT COUNT(*)::int AS total
+          FROM message
+          WHERE "createdAt" >= now() - interval '24 hours'
+            AND "isDeleted" = false
+        `),
+      this.messagesRepository.query(`
+          SELECT COUNT(*)::int AS total
+          FROM message
+          WHERE "createdAt" >= now() - interval '7 days'
+            AND "isDeleted" = false
+        `),
+      this.messagesRepository.query(`
+          SELECT COUNT(*)::int AS total
+          FROM message
+          WHERE "createdAt" >= now() - interval '24 hours'
+            AND "isDeleted" = false
+            AND "isTradeOffer" = true
+        `),
+      this.messagesRepository.query(`
+          SELECT "senderId" AS "userId", COUNT(*)::int AS total
+          FROM message
+          WHERE "senderId" IS NOT NULL
+            AND "createdAt" >= now() - interval '24 hours'
+            AND "isDeleted" = false
+          GROUP BY "senderId"
+          ORDER BY total DESC
+          LIMIT 5
+        `),
+      this.messagesRepository.query(`
+          SELECT "receiverId" AS "userId", COUNT(*)::int AS total
+          FROM message
+          WHERE "receiverId" IS NOT NULL
+            AND "createdAt" >= now() - interval '24 hours'
+            AND "isDeleted" = false
+          GROUP BY "receiverId"
+          ORDER BY total DESC
+          LIMIT 5
+        `),
+    ]);
+
+    return {
+      source: 'message',
+      summary: {
+        events24h: Number(messageCount24h[0]?.total || 0),
+        events7d: Number(messageCount7d[0]?.total || 0),
+        tradeOffers24h: Number(tradeOffers24h[0]?.total || 0),
+        messages24h: Number(messageCount24h[0]?.total || 0),
+      },
+      topSenders,
+      topReceivers,
+    };
   }
 }

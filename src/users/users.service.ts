@@ -4,8 +4,10 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { DataSource, Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import {
   Item,
@@ -18,9 +20,12 @@ import { BlockedUser } from '../messages/entities/blocked-user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
+import { AppCacheService } from '../common/redis/app-cache.service';
 
 @Injectable()
 export class UsersService {
+  private readonly useTimescaleLeaderboard: boolean;
+
   constructor(
     @InjectRepository(User)
     private usersRepository: Repository<User>,
@@ -32,7 +37,90 @@ export class UsersService {
     private messagesRepository: Repository<Message>,
     @InjectRepository(BlockedUser)
     private blockedUsersRepository: Repository<BlockedUser>,
-  ) {}
+    private dataSource: DataSource,
+    private appCacheService: AppCacheService,
+    private configService: ConfigService,
+  ) {
+    this.useTimescaleLeaderboard =
+      this.configService.get<string>('USE_TIMESCALE_LEADERBOARD', 'false') ===
+      'true';
+  }
+
+  private async invalidateLeaderboardCache() {
+    await this.appCacheService.invalidateLeaderboard(100);
+    if (this.useTimescaleLeaderboard) {
+      await this.refreshLeaderboardSnapshot(100);
+    }
+  }
+
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async refreshLeaderboardSnapshotJob() {
+    if (!this.useTimescaleLeaderboard) return;
+    await this.refreshLeaderboardSnapshot(100);
+  }
+
+  private async refreshLeaderboardSnapshot(limit = 100) {
+    const rows = await this.dataSource.query(
+      `
+      SELECT
+        u.id,
+        u."fullName" AS "fullName",
+        u."avatarUrl" AS "avatarUrl",
+        u."karmaPoint" AS "karmaPoint",
+        u.badges,
+        ROW_NUMBER() OVER(ORDER BY u."karmaPoint" DESC, u."createdAt" ASC) as rank,
+        MAX(kl.created_at) AS "lastKarmaEventAt"
+      FROM "user" u
+      LEFT JOIN karma_ledger kl ON kl.user_id = u.id
+      GROUP BY u.id
+      ORDER BY u."karmaPoint" DESC, u."createdAt" ASC
+      LIMIT $1
+      `,
+      [limit],
+    );
+
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query(`TRUNCATE TABLE leaderboard_snapshot`);
+
+      for (const row of rows) {
+        await manager.query(
+          `
+          INSERT INTO leaderboard_snapshot (
+            user_id,
+            rank,
+            full_name,
+            avatar_url,
+            karma_point,
+            badges,
+            last_karma_event_at,
+            snapshot_at
+          ) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, now())
+          `,
+          [
+            row.id,
+            Number(row.rank),
+            row.fullName,
+            row.avatarUrl || null,
+            Number(row.karmaPoint || 0),
+            JSON.stringify(row.badges || null),
+            row.lastKarmaEventAt || null,
+          ],
+        );
+      }
+    });
+
+    const normalized = rows.map((row: any) => ({
+      id: row.id,
+      fullName: row.fullName,
+      avatarUrl: row.avatarUrl,
+      karmaPoint: Number(row.karmaPoint || 0),
+      badges: row.badges,
+      rank: Number(row.rank),
+      lastKarmaEventAt: row.lastKarmaEventAt || null,
+    }));
+
+    await this.appCacheService.setLeaderboard(limit, normalized, 120);
+  }
 
   async getSuccessfulTradesCount(userId: string): Promise<number> {
     return this.messagesRepository.count({
@@ -71,7 +159,9 @@ export class UsersService {
       fullName,
     });
 
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    await this.invalidateLeaderboardCache();
+    return saved;
   }
 
   async findOneByEmail(email: string): Promise<User | null> {
@@ -142,6 +232,7 @@ export class UsersService {
     }
 
     const saved = await this.usersRepository.save(user);
+    await this.invalidateLeaderboardCache();
     const { password, ...result } = saved;
     return result;
   }
@@ -351,6 +442,39 @@ export class UsersService {
 
   // Genel Liderlik Sıralaması
   async getLeaderboard(limit = 100) {
+    if (this.useTimescaleLeaderboard) {
+      const cached = await this.appCacheService.getLeaderboard(limit);
+      if (cached && cached.length) {
+        return cached;
+      }
+
+      const snapshotRows = await this.dataSource.query(
+        `
+        SELECT user_id AS id,
+               rank,
+               full_name AS "fullName",
+               avatar_url AS "avatarUrl",
+               karma_point AS "karmaPoint",
+               badges,
+               last_karma_event_at AS "lastKarmaEventAt"
+        FROM leaderboard_snapshot
+        ORDER BY rank ASC
+        LIMIT $1
+        `,
+        [limit],
+      );
+
+      if (snapshotRows.length) {
+        const normalized = snapshotRows.map((row: any) => ({
+          ...row,
+          rank: Number(row.rank),
+          karmaPoint: Number(row.karmaPoint || 0),
+        }));
+        await this.appCacheService.setLeaderboard(limit, normalized, 120);
+        return normalized;
+      }
+    }
+
     const rawQuery = `
       SELECT 
         id, 
@@ -364,12 +488,18 @@ export class UsersService {
       LIMIT $1
     `;
     const result = await this.usersRepository.query(rawQuery, [limit]);
-    
-    return result.map((u: any) => ({
+
+    const rows = result.map((u: any) => ({
       ...u,
       rank: parseInt(u.rank, 10),
       karmaPoint: parseInt(u.karmaPoint, 10) || 0,
     }));
+
+    if (this.useTimescaleLeaderboard) {
+      await this.appCacheService.setLeaderboard(limit, rows, 120);
+    }
+
+    return rows;
   }
 
   // Kullanıcının Sıralamasını (Rank) Hesapla

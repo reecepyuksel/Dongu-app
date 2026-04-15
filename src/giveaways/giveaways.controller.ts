@@ -11,6 +11,7 @@ import {
 import { GiveawaysService } from './giveaways.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('giveaways')
 @ApiBearerAuth()
@@ -26,6 +27,7 @@ export class GiveawaysController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post(':itemId/apply')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   apply(@Param('itemId') itemId: string, @Request() req) {
     return this.giveawaysService.apply(itemId, req.user.userId);
   }

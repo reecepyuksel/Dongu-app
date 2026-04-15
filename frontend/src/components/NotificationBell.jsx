@@ -54,9 +54,27 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    const NOTIFICATION_POLL_MS = 20000;
+
+    const pollUnread = () => {
+      if (!document.hidden) {
+        fetchUnreadCount();
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchUnreadCount();
+      }
+    };
+
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(pollUnread, NOTIFICATION_POLL_MS);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [isAuthenticated]);
 
   // Close dropdown on outside click
@@ -110,10 +128,25 @@ export default function NotificationBell() {
       } catch (e) {}
     };
 
-    socket.on('newNotification', () => {
+    socket.on('newNotification', (incomingNotification) => {
       playPopSound();
-      fetchUnreadCount();
-      if (isOpen) fetchNotifications();
+
+      if (incomingNotification?.id) {
+        setUnreadCount((prev) => prev + 1);
+        setNotifications((prev) => {
+          const exists = prev.some(
+            (notification) => notification.id === incomingNotification.id,
+          );
+          if (exists) {
+            return prev;
+          }
+
+          return [incomingNotification, ...prev];
+        });
+      } else {
+        fetchUnreadCount();
+        if (isOpen) fetchNotifications();
+      }
     });
 
     return () => {

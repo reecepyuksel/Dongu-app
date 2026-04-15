@@ -24,7 +24,7 @@ import { extname } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { FindItemsQueryDto } from './dto/find-items-query.dto';
-
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('items')
 export class ItemsController {
@@ -32,6 +32,7 @@ export class ItemsController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
+  @Throttle({ default: { limit: 12, ttl: 300_000 } })
   @UseInterceptors(
     FilesInterceptor('images', 5, {
       storage: diskStorage({
@@ -67,14 +68,8 @@ export class ItemsController {
 
   @UseGuards(OptionalJwtAuthGuard)
   @Get()
-  findAll(
-    @Query() query: FindItemsQueryDto,
-    @Request() req?,
-  ) {
-    return this.itemsService.findAll(
-      query,
-      req.user?.userId,
-    );
+  findAll(@Query() query: FindItemsQueryDto, @Request() req?) {
+    return this.itemsService.findAll(query, req.user?.userId);
   }
 
   @UseGuards(OptionalJwtAuthGuard)
@@ -99,6 +94,7 @@ export class ItemsController {
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/confirm-delivery')
+  @Throttle({ default: { limit: 10, ttl: 300_000 } })
   @UseInterceptors(
     FileInterceptor('image', {
       storage: diskStorage({

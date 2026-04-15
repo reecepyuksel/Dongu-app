@@ -22,6 +22,8 @@ import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Message } from '../messages/entities/message.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityMember } from '../communities/entities/community-member.entity';
+import { AppCacheService } from '../common/redis/app-cache.service';
+import { EventMetricsService } from '../common/events/event-metrics.service';
 
 @Injectable()
 export class ItemsService {
@@ -36,6 +38,8 @@ export class ItemsService {
     private communityMembersRepository: Repository<CommunityMember>,
     private notificationsService: NotificationsService,
     private dataSource: DataSource,
+    private appCacheService: AppCacheService,
+    private eventMetricsService: EventMetricsService,
   ) {}
 
   private sanitizePublicUser(user?: User | null) {
@@ -243,11 +247,48 @@ export class ItemsService {
       .where('id = :id', { id: userId })
       .execute();
 
+    await this.eventMetricsService.recordKarmaLedger({
+      userId,
+      delta: 50,
+      reason: 'item_created',
+      sourceId: savedItem.id,
+    });
+
+    await this.appCacheService.invalidateItemsList();
+
     return savedItem;
   }
 
-  async findAll(query: FindItemsQueryDto, userId?: string): Promise<PaginatedResult<any>> {
-    const { page = 1, limit = 20, city, district, category, shareType, postType } = query;
+  async findAll(
+    query: FindItemsQueryDto,
+    userId?: string,
+  ): Promise<PaginatedResult<any>> {
+    const {
+      page = 1,
+      limit = 20,
+      city,
+      district,
+      category,
+      shareType,
+      postType,
+    } = query;
+    const cacheKey = this.appCacheService.makeItemsListKey(
+      {
+        city: city || null,
+        district: district || null,
+        category: category || null,
+        shareType: shareType || null,
+        postType: postType || null,
+      },
+      page,
+      limit,
+    );
+
+    const cached =
+      await this.appCacheService.getItemsList<PaginatedResult<any>>(cacheKey);
+    if (cached) {
+      return cached;
+    }
 
     const qb = this.itemsRepository
       .createQueryBuilder('item')
@@ -263,16 +304,27 @@ export class ItemsService {
       qb.andWhere('item.shareType = :shareType', { shareType });
     }
     if (city) {
-      const cities = city.split(',').map((c) => c.trim()).filter(Boolean);
+      const cities = city
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean);
       if (cities.length) qb.andWhere('item.city IN (:...cities)', { cities });
     }
     if (district) {
-      const districts = district.split(',').map((d) => d.trim()).filter(Boolean);
-      if (districts.length) qb.andWhere('item.district IN (:...districts)', { districts });
+      const districts = district
+        .split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
+      if (districts.length)
+        qb.andWhere('item.district IN (:...districts)', { districts });
     }
     if (category) {
-      const categories = category.split(',').map((c) => c.trim()).filter(Boolean);
-      if (categories.length) qb.andWhere('item.category IN (:...categories)', { categories });
+      const categories = category
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (categories.length)
+        qb.andWhere('item.category IN (:...categories)', { categories });
     }
 
     const [rawItems, total] = await qb
@@ -282,7 +334,7 @@ export class ItemsService {
       .take(limit)
       .getManyAndCount();
 
-    return {
+    const payload = {
       data: rawItems.map((item) => this.sanitizePublicItem(item)),
       meta: {
         page,
@@ -291,6 +343,9 @@ export class ItemsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    await this.appCacheService.setItemsList(cacheKey, payload, 30);
+    return payload;
   }
 
   async findOne(id: string, userId?: string): Promise<any> {
@@ -327,6 +382,13 @@ export class ItemsService {
         );
       }
     }
+
+    await this.eventMetricsService.recordItemViewEvent({
+      itemId: item.id,
+      viewerId: userId || null,
+      source: item.community ? 'community' : 'public',
+      sourceId: `${item.id}:${userId || 'anon'}`,
+    });
 
     return this.sanitizePublicItem(item);
   }
@@ -418,7 +480,12 @@ export class ItemsService {
       if (item.postType === ItemPostType.REQUESTING) {
         // "Var Mı?" (Request) durumu
         // Winner (Bende Var diyen kişi): +200
-        await manager.increment(User, { id: item.winner.id }, 'karmaPoint', 200);
+        await manager.increment(
+          User,
+          { id: item.winner.id },
+          'karmaPoint',
+          200,
+        );
         await manager.increment(
           User,
           { id: item.winner.id },
@@ -426,10 +493,23 @@ export class ItemsService {
           1,
         );
 
+        await this.eventMetricsService.recordKarmaLedger({
+          userId: item.winner.id,
+          delta: 200,
+          reason: 'request_resolved_winner',
+          sourceId: item.id,
+        });
+
         // Owner (Arayan kişi): +20
         await manager.increment(User, { id: item.owner.id }, 'karmaPoint', 20);
+        await this.eventMetricsService.recordKarmaLedger({
+          userId: item.owner.id,
+          delta: 20,
+          reason: 'request_resolved_owner',
+          sourceId: item.id,
+        });
 
-        // Bildirimler (Side effects - transaction içinde kalabilir veya dışarı taşınabilir. 
+        // Bildirimler (Side effects - transaction içinde kalabilir veya dışarı taşınabilir.
         // Burada DB tutarlılığı için içeride tutuyoruz)
         await this.notificationsService.createNotification(
           item.winner.id,
@@ -457,8 +537,30 @@ export class ItemsService {
           notificationMsg = `${item.winner.fullName} eşyayı teslim aldığını onayladı. Mutlu son! +100 İyilik Puanı kazandınız!`;
         }
 
-        await manager.increment(User, { id: item.owner.id }, 'karmaPoint', ownerPoints);
-        await manager.increment(User, { id: item.winner.id }, 'karmaPoint', winnerPoints);
+        await manager.increment(
+          User,
+          { id: item.owner.id },
+          'karmaPoint',
+          ownerPoints,
+        );
+        await this.eventMetricsService.recordKarmaLedger({
+          userId: item.owner.id,
+          delta: ownerPoints,
+          reason: 'delivery_confirmed_owner',
+          sourceId: item.id,
+        });
+        await manager.increment(
+          User,
+          { id: item.winner.id },
+          'karmaPoint',
+          winnerPoints,
+        );
+        await this.eventMetricsService.recordKarmaLedger({
+          userId: item.winner.id,
+          delta: winnerPoints,
+          reason: 'delivery_confirmed_winner',
+          sourceId: item.id,
+        });
 
         await this.notificationsService.createNotification(
           item.owner.id,

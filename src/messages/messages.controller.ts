@@ -23,6 +23,7 @@ import { MessagesService } from './messages.service';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { TradeStatus } from './entities/message.entity';
 
 @ApiTags('messages')
@@ -37,6 +38,7 @@ export class MessagesController {
   // Toplam okunmamış mesaj sayısı
   @UseGuards(AuthGuard('jwt'))
   @Get('unread-count')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
   getUnreadTotal(@Request() req) {
     return this.messagesService.getUnreadTotal(req.user.userId);
   }
@@ -46,6 +48,12 @@ export class MessagesController {
   @Get('my-conversations')
   getMyConversations(@Request() req) {
     return this.messagesService.getMyConversations(req.user.userId);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Get('metrics/summary')
+  getMetricsSummary() {
+    return this.messagesService.getMetricsSummary();
   }
 
   @UseGuards(AuthGuard('jwt'))
@@ -71,6 +79,7 @@ export class MessagesController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post('report/:userId')
+  @Throttle({ default: { limit: 5, ttl: 600_000 } })
   reportUser(
     @Param('userId') userId: string,
     @Body('reason') reason: string,
@@ -95,6 +104,7 @@ export class MessagesController {
   // Dosya yükleme (sohbet ekleri)
   @UseGuards(AuthGuard('jwt'))
   @Post('upload-attachment')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileFieldsInterceptor([{ name: 'files', maxCount: 5 }]))
   async uploadAttachment(
     @UploadedFiles() files: { files?: Express.Multer.File[] },
@@ -119,6 +129,7 @@ export class MessagesController {
   // Direkt mesaj gönder (İlan bağımsız)
   @UseGuards(AuthGuard('jwt'))
   @Post('direct/:userId')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   sendDirectMessage(
     @Param('userId') targetUserId: string,
     @Body('content') content: string,
@@ -138,6 +149,7 @@ export class MessagesController {
   // İlan bazlı mesaj gönder
   @UseGuards(AuthGuard('jwt'))
   @Post(':itemId')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   sendMessage(
     @Param('itemId') itemId: string,
     @Body('content') content: string,
@@ -159,6 +171,7 @@ export class MessagesController {
   // Takas teklifi gönder
   @UseGuards(AuthGuard('jwt'))
   @Post('trade-offer/upload-photo')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(FileInterceptor('photo'))
   async uploadTradeOfferPhoto(@UploadedFile() file: Express.Multer.File) {
     try {
@@ -191,6 +204,7 @@ export class MessagesController {
   // Takas teklifi gönder
   @UseGuards(AuthGuard('jwt'))
   @Post('trade-offer/send')
+  @Throttle({ default: { limit: 10, ttl: 300_000 } })
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'photo', maxCount: 10 },
@@ -332,6 +346,7 @@ export class MessagesController {
   // Takasa özel mesaj gönder
   @UseGuards(AuthGuard('jwt'))
   @Post('trade/:tradeId/message')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   sendTradeMessage(
     @Param('tradeId') tradeId: string,
     @Body('content') content: string,

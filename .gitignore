@@ -53,3 +53,7 @@ test-*.ts
 seed-*.js
 *output.log
 start*.log
+
+# Operational artifacts
+backups/
+artifacts/
