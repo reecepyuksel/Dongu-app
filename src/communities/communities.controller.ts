@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { CreateCommunityDto } from './dto/create-community.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { communityImageUploadOptions } from '../common/uploads/multer-options';
 
 @Controller('communities')
 export class CommunitiesController {
@@ -28,7 +29,7 @@ export class CommunitiesController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('image'))
+  @UseInterceptors(FileInterceptor('image', communityImageUploadOptions))
   async create(
     @Body() body: CreateCommunityDto,
     @Request() req,

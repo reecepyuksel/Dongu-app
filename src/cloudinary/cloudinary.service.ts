@@ -5,9 +5,6 @@ import {
   UploadApiErrorResponse,
   v2 as cloudinary,
 } from 'cloudinary';
-import { mkdir, unlink, writeFile } from 'fs/promises';
-import { randomUUID } from 'crypto';
-import { extname, join } from 'path';
 import { Readable } from 'stream';
 
 @Injectable()
@@ -19,6 +16,9 @@ export class CloudinaryService {
 
   private ensureConfigured(): boolean {
     if (this.configChecked) return this.configured;
+
+    const nodeEnv =
+      this.configService.get<string>('NODE_ENV') || process.env.NODE_ENV;
 
     const cloudinaryUrl =
       this.configService.get<string>('CLOUDINARY_URL') ||
@@ -56,10 +56,10 @@ export class CloudinaryService {
     if (!resolvedCloudName || !resolvedApiKey || !resolvedApiSecret) {
       this.configChecked = true;
       this.configured = false;
-      console.warn(
-        'Cloudinary yapılandırması eksik. Yerel uploads fallback kullanılacak.',
+
+      throw new Error(
+        `Cloudinary yapılandırması eksik. Upload işlemleri için CLOUDINARY_URL veya CLOUDINARY_CLOUD_NAME/CLOUDINARY_API_KEY/CLOUDINARY_API_SECRET zorunludur. (NODE_ENV=${nodeEnv})`,
       );
-      return false;
     }
 
     cloudinary.config({
@@ -73,51 +73,10 @@ export class CloudinaryService {
     return true;
   }
 
-  private getExtFromMime(mimeType?: string): string {
-    if (!mimeType) return '.bin';
-    if (mimeType.includes('jpeg')) return '.jpg';
-    if (mimeType.includes('png')) return '.png';
-    if (mimeType.includes('webp')) return '.webp';
-    if (mimeType.includes('gif')) return '.gif';
-    if (mimeType.includes('mp4')) return '.mp4';
-    if (mimeType.includes('quicktime')) return '.mov';
-    return '.bin';
-  }
-
-  private async saveLocalFile(
-    file: Express.Multer.File,
-  ): Promise<UploadApiResponse> {
-    const uploadsDir = join(process.cwd(), 'uploads', 'trade-offers');
-    await mkdir(uploadsDir, { recursive: true });
-
-    const ext =
-      extname(file.originalname || '') || this.getExtFromMime(file.mimetype);
-    const fileName = `${Date.now()}-${randomUUID()}${ext}`;
-    const fullPath = join(uploadsDir, fileName);
-
-    await writeFile(fullPath, file.buffer);
-
-    const port = this.configService.get<string>('PORT') || '3005';
-    const baseUrl =
-      this.configService.get<string>('BACKEND_PUBLIC_URL') ||
-      `http://localhost:${port}`;
-    const secureUrl = `${baseUrl}/uploads/trade-offers/${fileName}`;
-
-    return {
-      secure_url: secureUrl,
-      public_id: `local/trade-offers/${fileName}`,
-      resource_type: 'auto',
-    } as UploadApiResponse;
-  }
-
   async uploadImage(
     file: Express.Multer.File,
   ): Promise<UploadApiResponse | UploadApiErrorResponse> {
-    const hasCloudinary = this.ensureConfigured();
-
-    if (!hasCloudinary) {
-      return this.saveLocalFile(file);
-    }
+    this.ensureConfigured();
 
     return new Promise((resolve, reject) => {
       const upload = cloudinary.uploader.upload_stream(
@@ -136,27 +95,7 @@ export class CloudinaryService {
   }
 
   async deleteImage(publicId: string): Promise<any> {
-    // Local fallback dosyasıysa diskten sil
-    if (publicId?.startsWith('local/trade-offers/')) {
-      const fileName = publicId.replace('local/trade-offers/', '');
-      const localPath = join(
-        process.cwd(),
-        'uploads',
-        'trade-offers',
-        fileName,
-      );
-      try {
-        await unlink(localPath);
-      } catch {
-        // Dosya zaten silinmiş olabilir.
-      }
-      return { result: 'ok' };
-    }
-
-    const hasCloudinary = this.ensureConfigured();
-    if (!hasCloudinary) {
-      return { result: 'skipped' };
-    }
+    this.ensureConfigured();
 
     return new Promise((resolve, reject) => {
       cloudinary.uploader.destroy(publicId, (error, result) => {

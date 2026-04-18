@@ -25,6 +25,11 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { TradeStatus } from './entities/message.entity';
+import {
+  chatAttachmentUploadOptions,
+  tradeOfferMediaUploadOptions,
+  tradeOfferPhotoUploadOptions,
+} from '../common/uploads/multer-options';
 
 @ApiTags('messages')
 @ApiBearerAuth()
@@ -105,7 +110,12 @@ export class MessagesController {
   @UseGuards(AuthGuard('jwt'))
   @Post('upload-attachment')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @UseInterceptors(FileFieldsInterceptor([{ name: 'files', maxCount: 5 }]))
+  @UseInterceptors(
+    FileFieldsInterceptor(
+      [{ name: 'files', maxCount: 5 }],
+      chatAttachmentUploadOptions,
+    ),
+  )
   async uploadAttachment(
     @UploadedFiles() files: { files?: Express.Multer.File[] },
   ) {
@@ -172,7 +182,7 @@ export class MessagesController {
   @UseGuards(AuthGuard('jwt'))
   @Post('trade-offer/upload-photo')
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
-  @UseInterceptors(FileInterceptor('photo'))
+  @UseInterceptors(FileInterceptor('photo', tradeOfferPhotoUploadOptions))
   async uploadTradeOfferPhoto(@UploadedFile() file: Express.Multer.File) {
     try {
       if (!file) {
@@ -181,12 +191,6 @@ export class MessagesController {
 
       const result = await this.cloudinaryService.uploadImage(file);
       const photoUrl = result?.secure_url || null;
-
-      console.log('Trade photo upload result:', {
-        hasFile: !!file,
-        fileName: file?.originalname,
-        photoUrl,
-      });
 
       if (!photoUrl) {
         throw new BadRequestException('Cloudinary fotoğraf URL üretemedi.');
@@ -206,10 +210,13 @@ export class MessagesController {
   @Post('trade-offer/send')
   @Throttle({ default: { limit: 10, ttl: 300_000 } })
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'photo', maxCount: 10 },
-      { name: 'video', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'photo', maxCount: 10 },
+        { name: 'video', maxCount: 1 },
+      ],
+      tradeOfferMediaUploadOptions,
+    ),
   )
   async sendTradeOffer(
     @Body('targetItemId') targetItemId: string,
@@ -237,17 +244,6 @@ export class MessagesController {
           incomingPhotos = [photosInput];
         }
       }
-
-      console.log("Frontend'den gelen DTO:", {
-        targetItemId,
-        offeredItemId,
-        manualOfferText,
-        photoUrl,
-        photosInput,
-        incomingPhotos,
-        hasPhotoFile: !!files?.photo?.[0],
-        hasVideoFile: !!files?.video?.[0],
-      });
 
       const uploadedPhotoUrls: string[] = [];
       let tradeVideoUrl: string | undefined = undefined;
@@ -291,8 +287,6 @@ export class MessagesController {
         ...incomingPhotos,
         ...(photoUrl ? [photoUrl] : []),
       ].filter(Boolean);
-
-      console.log('Controller final photo list:', finalPhotoUrls);
 
       if ((photoUrl || incomingPhotos.length) && !finalPhotoUrls.length) {
         throw new BadRequestException(

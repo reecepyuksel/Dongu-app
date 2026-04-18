@@ -4,6 +4,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { DataSource } from 'typeorm';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { getAllowedOrigins } from './common/config/cors-origins';
 
 const logger = new Logger('Bootstrap');
 
@@ -13,9 +14,7 @@ async function bootstrap() {
   });
 
   // CORS: only allow explicitly configured origins; never wildcard in production
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:5173', 'http://localhost:3000'];
+  const allowedOrigins = getAllowedOrigins();
 
   app.enableCors({
     origin: allowedOrigins,
@@ -46,7 +45,9 @@ async function bootstrap() {
 
   const dataSource = app.get(DataSource);
   if (dataSource.isInitialized) {
-    logger.log(`✅ DB bağlantısı başarılı (Port: ${process.env.DB_PORT ?? 5433})`);
+    logger.log(
+      `✅ DB bağlantısı başarılı (Port: ${process.env.DB_PORT ?? 5433})`,
+    );
   } else {
     logger.error(`❌ DB bağlantısı kurulamadı`);
   }

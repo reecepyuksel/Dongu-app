@@ -190,10 +190,31 @@ const Dashboard = () => {
   const successfulTradesCount = user?.successfulTradesCount || 0;
 
   const latestItems = useMemo(() => myItems.slice(0, 3), [myItems]);
-  const progressPercent = Math.min(
-    100,
-    Math.round(((user?.karmaPoint || 0) / 1000) * 100),
+
+  const RANKS = [
+    { min: 0, max: 250, name: 'Yeni Paylaşımcı' },
+    { min: 251, max: 750, name: 'İyilik Yolcusu' },
+    { min: 751, max: 2000, name: 'İyilik Elçisi' },
+    { min: 2001, max: Infinity, name: 'Döngü Ustası' },
+  ];
+
+  const karma = user?.karmaPoint || 0;
+  const safeCurrentIdx = Math.max(
+    0,
+    RANKS.findLastIndex((r) => karma >= r.min),
   );
+  const currentRank = RANKS[safeCurrentIdx];
+  const nextRank = RANKS[safeCurrentIdx + 1] || RANKS[RANKS.length - 1];
+  const rankProgress =
+    currentRank.max === Infinity
+      ? 100
+      : Math.min(
+          100,
+          Math.round(
+            ((karma - currentRank.min) / (currentRank.max - currentRank.min)) *
+              100,
+          ),
+        );
 
   if (authLoading || loading) {
     return (
@@ -268,35 +289,6 @@ const Dashboard = () => {
               <Share2 className="h-4 w-4" /> Profilini Paylaş
             </button>
           </div>
-
-          <div className="rounded-3xl border border-[#c4c6cd]/20 bg-white p-5 shadow-sm">
-            <h3 className="font-[Manrope] text-lg font-bold text-[#05162b]">
-              Uzmanlık & İlgi
-            </h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {['Sürdürülebilirlik', 'Eğitim', 'Mentörlük', 'Topluluk'].map(
-                (tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-lg bg-[#f2f4f6] px-2.5 py-1 text-xs font-semibold text-[#44474d]"
-                  >
-                    {tag}
-                  </span>
-                ),
-              )}
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden rounded-3xl bg-[#05162b] p-6 text-white">
-            <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#4d6359]/35 blur-2xl" />
-            <h4 className="relative z-10 text-sm font-bold">Premium Üyelik</h4>
-            <p className="relative z-10 mt-2 text-xs text-[#d4e3ff]">
-              Daha fazla kişiye ulaş ve etki puanını artır.
-            </p>
-            <button className="relative z-10 mt-4 inline-flex items-center gap-2 text-xs font-bold text-white">
-              Hemen Yükselt <ChevronRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
         </aside>
 
         <div className="space-y-6 md:col-span-8 lg:col-span-9">
@@ -307,7 +299,7 @@ const Dashboard = () => {
                   İyilik Yolculuğu
                 </span>
                 <h2 className="mt-1 font-[Manrope] text-3xl font-extrabold text-[#05162b]">
-                  Kıdemli Küratör Yolunda
+                  {nextRank.name} Yolunda
                 </h2>
               </div>
               <div className="flex gap-8">
@@ -324,7 +316,7 @@ const Dashboard = () => {
                     Etki Puanı
                   </p>
                   <p className="font-[Manrope] text-2xl font-extrabold text-[#4d6359]">
-                    {user?.karmaPoint || 0}
+                    {karma}
                   </p>
                 </div>
               </div>
@@ -334,15 +326,19 @@ const Dashboard = () => {
               <div className="h-3 w-full overflow-hidden rounded-full bg-[#eceef0] p-0.5">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-[#05162b] to-[#4d6359]"
-                  style={{ width: `${progressPercent}%` }}
+                  style={{ width: `${rankProgress}%` }}
                 />
               </div>
               <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.15em] text-[#75777d]">
-                <span>Seviye 4</span>
+                <span>{currentRank.name}</span>
                 <span className="text-[#05162b]">
-                  Son {Math.max(0, 1000 - (user?.karmaPoint || 0))} puan
+                  Son{' '}
+                  {currentRank.max === Infinity
+                    ? 0
+                    : Math.max(0, currentRank.max - karma)}{' '}
+                  puan
                 </span>
-                <span>Seviye 5</span>
+                <span>{nextRank.name}</span>
               </div>
             </div>
           </section>

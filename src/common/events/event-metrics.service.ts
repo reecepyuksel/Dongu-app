@@ -51,11 +51,20 @@ type RetryQueueRow = {
   retry_count: number;
 };
 
+type RetryQueueRowRaw = Partial<{
+  id: number | string;
+  target_table: string;
+  payload: unknown;
+  retry_count: number | string;
+  retryCount: number | string;
+}>;
+
 @Injectable()
 export class EventMetricsService {
   private readonly logger = new Logger(EventMetricsService.name);
   private readonly enabled: boolean;
   private readonly retryBatchSize: number;
+  private readonly maxRetryCount: number;
 
   constructor(
     private readonly dataSource: DataSource,
@@ -64,9 +73,77 @@ export class EventMetricsService {
     this.enabled =
       this.configService.get<string>('USE_EVENT_BASED_METRICS', 'false') ===
       'true';
-    this.retryBatchSize = Number(
-      this.configService.get<string>('EVENT_RETRY_BATCH_SIZE', '50'),
+    this.retryBatchSize = this.parsePositiveIntSetting(
+      'EVENT_RETRY_BATCH_SIZE',
+      50,
+      1,
     );
+    this.maxRetryCount = this.parsePositiveIntSetting(
+      'EVENT_RETRY_MAX_COUNT',
+      10,
+      1,
+    );
+  }
+
+  private parsePositiveIntSetting(
+    key: string,
+    fallback: number,
+    min: number,
+  ): number {
+    const raw = this.configService.get<string>(key, String(fallback));
+    const parsed = Number(raw);
+
+    if (!Number.isFinite(parsed) || parsed < min) {
+      this.logger.warn(
+        `${key} invalid (${String(raw)}). Falling back to ${fallback}.`,
+      );
+      return fallback;
+    }
+
+    return Math.floor(parsed);
+  }
+
+  private getNextRetryAtIso(retryCount: number): string {
+    const safeRetryCount =
+      Number.isFinite(retryCount) && retryCount >= 0
+        ? Math.floor(retryCount)
+        : 1;
+
+    return new Date(Date.now() + safeRetryCount * 60_000).toISOString();
+  }
+
+  private normalizeRetryQueueRow(raw: RetryQueueRowRaw): RetryQueueRow | null {
+    const id = Number(raw.id);
+    const retryCount = Number(raw.retry_count ?? raw.retryCount ?? 0);
+    const target = raw.target_table;
+
+    if (!Number.isFinite(id) || id <= 0) {
+      return null;
+    }
+
+    if (!Number.isFinite(retryCount) || retryCount < 0) {
+      return null;
+    }
+
+    if (
+      target !== 'notification_event' &&
+      target !== 'message_event' &&
+      target !== 'karma_ledger' &&
+      target !== 'item_view_event'
+    ) {
+      return null;
+    }
+
+    return {
+      id: Math.floor(id),
+      target_table: target,
+      payload: raw.payload as
+        | NotificationEventInput
+        | MessageEventInput
+        | KarmaLedgerInput
+        | ItemViewEventInput,
+      retry_count: Math.floor(retryCount),
+    };
   }
 
   private async nonBlockingWrite(
@@ -137,16 +214,36 @@ export class EventMetricsService {
   async processRetryQueue(): Promise<void> {
     if (!this.enabled) return;
 
-    const rows: RetryQueueRow[] = await this.dataSource.query(
+    const rawRows: RetryQueueRowRaw[] = await this.dataSource.query(
       `
-      SELECT id, target_table, payload, retry_count
-      FROM event_retry_queue
-      WHERE next_retry_at <= now()
-      ORDER BY next_retry_at ASC, retry_count ASC
-      LIMIT $1
+      WITH candidates AS (
+        SELECT id
+        FROM event_retry_queue
+        WHERE next_retry_at <= now()
+        ORDER BY next_retry_at ASC, retry_count ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT $1
+      )
+      UPDATE event_retry_queue q
+      SET next_retry_at = now() + interval '5 minutes',
+          updated_at = now()
+      FROM candidates c
+      WHERE q.id = c.id
+      RETURNING q.id, q.target_table, q.payload, q.retry_count
       `,
       [this.retryBatchSize],
     );
+
+    const rows = rawRows
+      .map((row) => this.normalizeRetryQueueRow(row))
+      .filter((row): row is RetryQueueRow => row !== null);
+
+    const malformedRowsCount = rawRows.length - rows.length;
+    if (malformedRowsCount > 0) {
+      this.logger.warn(
+        `Skipped ${malformedRowsCount} malformed retry queue row(s).`,
+      );
+    }
 
     for (const row of rows) {
       try {
@@ -175,21 +272,92 @@ export class EventMetricsService {
         );
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        const nextRetryAt = new Date(
-          Date.now() + (row.retry_count + 1) * 60_000,
-        );
+        const nextRetryCount = row.retry_count + 1;
 
-        await this.dataSource.query(
-          `
-          UPDATE event_retry_queue
-          SET retry_count = retry_count + 1,
-              last_error = $2,
-              next_retry_at = $3,
-              updated_at = now()
-          WHERE id = $1
-          `,
-          [row.id, message, nextRetryAt.toISOString()],
-        );
+        if (nextRetryCount >= this.maxRetryCount) {
+          try {
+            await this.dataSource.query(
+              `
+              INSERT INTO event_retry_dead_letter (
+                target_table,
+                payload,
+                retry_count,
+                last_error
+              ) VALUES ($1, $2::jsonb, $3, $4)
+              `,
+              [
+                row.target_table,
+                JSON.stringify(row.payload),
+                nextRetryCount,
+                message,
+              ],
+            );
+
+            await this.dataSource.query(
+              `DELETE FROM event_retry_queue WHERE id = $1`,
+              [row.id],
+            );
+          } catch (deadLetterError: unknown) {
+            const deadLetterMessage =
+              deadLetterError instanceof Error
+                ? deadLetterError.message
+                : String(deadLetterError);
+
+            this.logger.error(
+              `retry dead-letter move failed for queueId=${row.id}: ${deadLetterMessage}`,
+            );
+
+            try {
+              await this.dataSource.query(
+                `
+                UPDATE event_retry_queue
+                SET retry_count = retry_count + 1,
+                    last_error = $2,
+                    next_retry_at = $3,
+                    updated_at = now()
+                WHERE id = $1
+                `,
+                [
+                  row.id,
+                  `${message}; dead-letter-failed: ${deadLetterMessage}`,
+                  this.getNextRetryAtIso(nextRetryCount),
+                ],
+              );
+            } catch (updateAfterDeadLetterError: unknown) {
+              const updateMessage =
+                updateAfterDeadLetterError instanceof Error
+                  ? updateAfterDeadLetterError.message
+                  : String(updateAfterDeadLetterError);
+              this.logger.error(
+                `retry queue update failed after dead-letter error for queueId=${row.id}: ${updateMessage}`,
+              );
+            }
+          }
+
+          continue;
+        }
+
+        try {
+          await this.dataSource.query(
+            `
+            UPDATE event_retry_queue
+            SET retry_count = retry_count + 1,
+                last_error = $2,
+                next_retry_at = $3,
+                updated_at = now()
+            WHERE id = $1
+            `,
+            [row.id, message, this.getNextRetryAtIso(nextRetryCount)],
+          );
+        } catch (updateError: unknown) {
+          const updateMessage =
+            updateError instanceof Error
+              ? updateError.message
+              : String(updateError);
+          this.logger.error(
+            `retry queue update failed for queueId=${row.id}: ${updateMessage}`,
+          );
+        }
       }
     }
   }

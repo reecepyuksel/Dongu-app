@@ -20,7 +20,6 @@ import {
 import Home from './pages/Home';
 import ItemDetail from './pages/ItemDetail';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import PublicProfile from './pages/PublicProfile';
 import Messages from './pages/Messages';
@@ -46,6 +45,48 @@ import CommunityDetail from './pages/CommunityDetail';
 import api from './api';
 import donLogo from './assets/vector.svg';
 import { io } from 'socket.io-client';
+
+function AppContent() {
+  const location = useLocation();
+  const isAuthRoute =
+    location.pathname === '/login' || location.pathname === '/register';
+
+  return (
+    <div
+      className={`relative min-h-screen flex flex-col bg-[#f7f9fb] text-[#191c1e] ${
+        isAuthRoute ? 'pb-0' : 'pb-16 sm:pb-0'
+      }`}
+    >
+      <ScrollToTop />
+      <Navbar />
+      <div className="flex-1">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/items/:id" element={<ItemDetail />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Login initialMode="register" />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/messages" element={<Messages />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/trades" element={<Trades />} />
+          <Route path="/trades/:tradeId" element={<TradeDetailPage />} />
+          <Route path="/profile/:id" element={<PublicProfile />} />
+          <Route path="/liderlik" element={<Leaderboard />} />
+          <Route path="/topluluklar" element={<Communities />} />
+          <Route path="/topluluk/:id" element={<CommunityDetail />} />
+          <Route path="/how-it-works" element={<HowItWorks />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms-of-service" element={<TermsOfService />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Routes>
+      </div>
+      {!isAuthRoute && <Footer />}
+      {!isAuthRoute && <BottomNav />}
+    </div>
+  );
+}
 
 function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
@@ -468,41 +509,7 @@ function App() {
       <Router>
         <AuthProvider>
           <ToastProvider>
-            <div className="relative min-h-screen flex flex-col bg-[#f7f9fb] text-[#191c1e] pb-16 sm:pb-0">
-              <ScrollToTop />
-              <Navbar />
-              <div className="flex-1">
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/items/:id" element={<ItemDetail />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/messages" element={<Messages />} />
-                  <Route path="/chat" element={<Chat />} />
-                  <Route path="/trades" element={<Trades />} />
-                  <Route
-                    path="/trades/:tradeId"
-                    element={<TradeDetailPage />}
-                  />
-                  <Route path="/profile/:id" element={<PublicProfile />} />
-                  <Route path="/liderlik" element={<Leaderboard />} />
-                  <Route path="/topluluklar" element={<Communities />} />
-                  <Route path="/topluluk/:id" element={<CommunityDetail />} />
-                  <Route path="/how-it-works" element={<HowItWorks />} />
-                  <Route path="/about" element={<About />} />
-                  <Route path="/faq" element={<FAQ />} />
-                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                  <Route
-                    path="/terms-of-service"
-                    element={<TermsOfService />}
-                  />
-                  <Route path="/settings" element={<SettingsPage />} />
-                </Routes>
-              </div>
-              <Footer />
-              <BottomNav />
-            </div>
+            <AppContent />
           </ToastProvider>
         </AuthProvider>
       </Router>

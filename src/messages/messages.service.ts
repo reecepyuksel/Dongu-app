@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -22,7 +23,9 @@ import { EventMetricsService } from '../common/events/event-metrics.service';
 
 @Injectable()
 export class MessagesService {
+  private readonly logger = new Logger(MessagesService.name);
   private readonly useEventBasedMetrics: boolean;
+  private readonly logTradeOfferDebug: boolean;
 
   constructor(
     @InjectRepository(Message)
@@ -44,6 +47,9 @@ export class MessagesService {
   ) {
     this.useEventBasedMetrics =
       this.configService.get<string>('USE_EVENT_BASED_METRICS', 'false') ===
+      'true';
+    this.logTradeOfferDebug =
+      this.configService.get<string>('LOG_TRADE_OFFERS_DEBUG', 'false') ===
       'true';
   }
 
@@ -181,15 +187,6 @@ export class MessagesService {
     tradeVideoUrl?: string,
   ): Promise<Message> {
     try {
-      console.log('sendTradeOffer input:', {
-        targetItemId,
-        senderId,
-        offeredItemId,
-        hasManualOfferText: !!manualOfferText,
-        tradeMediaUrls,
-        tradeVideoUrl,
-      });
-
       const targetItem = await this.itemsRepository.findOne({
         where: { id: targetItemId },
         relations: ['owner'],
@@ -248,13 +245,6 @@ export class MessagesService {
       const finalTradeMediaUrl =
         finalTradeMediaUrls[0] || offeredItemImageUrl || null;
 
-      console.log('DB map edilecek alanlar:', {
-        finalOfferedItemId,
-        finalTradeMediaUrl,
-        finalTradeMediaUrls,
-        tradeVideoUrl: tradeVideoUrl || null,
-      });
-
       const message = this.messagesRepository.create({
         item: { id: targetItem.id },
         sender: { id: senderId },
@@ -270,14 +260,6 @@ export class MessagesService {
       });
 
       const savedMessage = await this.messagesRepository.save(message);
-
-      console.log('DB kaydedilen trade offer:', {
-        id: savedMessage.id,
-        tradeMediaUrl: savedMessage.tradeMediaUrl,
-        tradeMediaUrls: savedMessage.tradeMediaUrls,
-        tradeVideoUrl: savedMessage.tradeVideoUrl,
-        tradeOfferedItemId: savedMessage.tradeOfferedItemId,
-      });
 
       const result = await this.messagesRepository.findOne({
         where: { id: savedMessage.id },
@@ -929,14 +911,17 @@ export class MessagesService {
         });
       });
 
-      console.log(
-        'getMyTradeOffers photoUrl kontrolü:',
-        enhancedMessages.map((m) => ({
-          id: m.id,
-          tradeMediaUrl: m.tradeMediaUrl,
-          photoUrl: m.photoUrl,
-        })),
-      );
+      if (this.logTradeOfferDebug) {
+        this.logger.debug(
+          `getMyTradeOffers photoUrl kontrolü: ${JSON.stringify(
+            enhancedMessages.map((m) => ({
+              id: m.id,
+              tradeMediaUrl: m.tradeMediaUrl,
+              photoUrl: m.photoUrl,
+            })),
+          )}`,
+        );
+      }
 
       await this.appCacheService.setTradeOffers(userId, enhancedMessages, 20);
       return enhancedMessages;

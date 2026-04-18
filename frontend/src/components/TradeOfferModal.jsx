@@ -106,7 +106,6 @@ const TradeOfferModal = ({
       });
 
       const uploadedUrls = await Promise.all(uploadPromises);
-      console.log('Cloudinary çoklu upload sonucu:', uploadedUrls);
       return uploadedUrls;
     } catch (error) {
       console.error('Fotoğraflar yüklenemedi:', error);
@@ -146,8 +145,6 @@ const TradeOfferModal = ({
         photos: uploadedPhotoUrls,
         photoUrl: uploadedPhotoUrls[0] || undefined,
       };
-
-      console.log("Backend'e giden veri:", payload);
 
       let requestPayload = payload;
       if (videoFile) {

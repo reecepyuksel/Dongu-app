@@ -63,11 +63,15 @@ export class GiveawaysService {
     }
 
     if (item.status !== ItemStatus.AVAILABLE) {
-      throw new BadRequestException('Bu eşya şu an döngüye katılmak için uygun değil.');
+      throw new BadRequestException(
+        'Bu eşya şu an döngüye katılmak için uygun değil.',
+      );
     }
 
     if (item.owner.id === userId) {
-      throw new BadRequestException('Kendi paylaştığınız eşya için döngüye katılamazsınız.');
+      throw new BadRequestException(
+        'Kendi paylaştığınız eşya için döngüye katılamazsınız.',
+      );
     }
 
     const existingApplication = await this.giveawaysRepository.findOne({
@@ -94,7 +98,14 @@ export class GiveawaysService {
       );
     }
 
-    return this.giveawaysRepository.save(giveaway);
+    try {
+      return await this.giveawaysRepository.save(giveaway);
+    } catch (error: any) {
+      if (error?.code === '23505') {
+        throw new BadRequestException('Bu döngüye zaten katılmışsınız.');
+      }
+      throw error;
+    }
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
@@ -204,7 +215,10 @@ export class GiveawaysService {
       const randomIndex = Math.floor(Math.random() * applications.length);
       selectedUser = applications[randomIndex].applicant;
     } else {
-      if (!winnerId) throw new BadRequestException('Yeni sahibi belirlenirken bir sorun oluştu (ID eksik).');
+      if (!winnerId)
+        throw new BadRequestException(
+          'Yeni sahibi belirlenirken bir sorun oluştu (ID eksik).',
+        );
       const winnerApp = applications.find(
         (app) => app.applicant.id === winnerId,
       );
@@ -317,7 +331,10 @@ export class GiveawaysService {
             try {
               await this.cloudinaryService.deleteImage(publicId);
             } catch (err) {
-              this.logger.error(`Cloudinary delete error for ${publicId}:`, err);
+              this.logger.error(
+                `Cloudinary delete error for ${publicId}:`,
+                err,
+              );
             }
           }
         }
@@ -332,17 +349,17 @@ export class GiveawaysService {
       const parts = url.split('/');
       const lastPart = parts[parts.length - 1];
       const fileName = lastPart.split('.')[0];
-      
+
       // Handle potential folder paths
       const uploadIndex = parts.indexOf('upload');
       if (uploadIndex !== -1) {
-          // Typically: .../upload/v12345/folder/id.jpg
-          // We want skip 'v12345'
-          const pathParts = parts.slice(uploadIndex + 2);
-          const fullIdWithExt = pathParts.join('/');
-          return fullIdWithExt.split('.')[0];
+        // Typically: .../upload/v12345/folder/id.jpg
+        // We want skip 'v12345'
+        const pathParts = parts.slice(uploadIndex + 2);
+        const fullIdWithExt = pathParts.join('/');
+        return fullIdWithExt.split('.')[0];
       }
-      
+
       return fileName;
     } catch {
       return null;

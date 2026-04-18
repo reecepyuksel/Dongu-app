@@ -19,32 +19,26 @@ import { CreateItemDto } from './dto/create-item.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DeliveryStatus } from './entities/item.entity';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { FindItemsQueryDto } from './dto/find-items-query.dto';
 import { Throttle } from '@nestjs/throttler';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import {
+  deliveryProofUploadOptions,
+  itemImageUploadOptions,
+} from '../common/uploads/multer-options';
 
 @Controller('items')
 export class ItemsController {
-  constructor(private readonly itemsService: ItemsService) {}
+  constructor(
+    private readonly itemsService: ItemsService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Post()
   @Throttle({ default: { limit: 12, ttl: 300_000 } })
-  @UseInterceptors(
-    FilesInterceptor('images', 5, {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = uuidv4();
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
-    }),
-  )
+  @UseInterceptors(FilesInterceptor('images', 5, itemImageUploadOptions))
   async create(
     @Body() createItemDto: CreateItemDto,
     @Request() req,
@@ -53,11 +47,13 @@ export class ItemsController {
     let imageUrls: string[] = [];
 
     if (files && files.length > 0) {
-      const protocol = req.protocol;
-      const host = req.get('host');
-      imageUrls = files.map(
-        (file) => `${protocol}://${host}/uploads/${file.filename}`,
+      const uploadResults = await Promise.all(
+        files.map((file) => this.cloudinaryService.uploadImage(file)),
       );
+
+      imageUrls = uploadResults
+        .map((result) => result?.secure_url)
+        .filter((url): url is string => Boolean(url));
     } else {
       // Also accept single 'image' fallback or let service handle it via 'images'
       // We just pass empty array if none uploaded
@@ -95,18 +91,7 @@ export class ItemsController {
   @UseGuards(JwtAuthGuard)
   @Post(':id/confirm-delivery')
   @Throttle({ default: { limit: 10, ttl: 300_000 } })
-  @UseInterceptors(
-    FileInterceptor('image', {
-      storage: diskStorage({
-        destination: './uploads',
-        filename: (req, file, cb) => {
-          const randomName = uuidv4();
-          cb(null, `${randomName}${extname(file.originalname)}`);
-        },
-      }),
-      limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
-    }),
-  )
+  @UseInterceptors(FileInterceptor('image', deliveryProofUploadOptions))
   async confirmDelivery(
     @Param('id') id: string,
     @Request() req,
@@ -115,9 +100,8 @@ export class ItemsController {
     let proofImageUrl: string | undefined = undefined;
 
     if (file) {
-      const protocol = req.protocol;
-      const host = req.get('host');
-      proofImageUrl = `${protocol}://${host}/uploads/${file.filename}`;
+      const uploadResult = await this.cloudinaryService.uploadImage(file);
+      proofImageUrl = uploadResult?.secure_url;
     }
 
     return this.itemsService.confirmDelivery(

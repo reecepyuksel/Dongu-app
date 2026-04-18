@@ -298,13 +298,6 @@ export default function NotificationBell() {
                 Hareketlerini ve mesajlarını buradan takip et
               </p>
             </div>
-            <button
-              onClick={handleMarkAllRead}
-              disabled={unreadInList === 0}
-              className="font-[Inter] text-xs font-semibold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
-            >
-              Tümünü okundu yap
-            </button>
           </div>
 
           {/* Tabs */}
@@ -458,11 +451,11 @@ export default function NotificationBell() {
 
           <div className="bg-[#f2f4f6]/30 p-4 text-center">
             <button
-              onClick={() => setShowAll((prev) => !prev)}
-              className="inline-flex items-center gap-2 text-sm font-bold text-[#1b2b41] transition-colors hover:text-[#4d6359]"
+              onClick={handleMarkAllRead}
+              disabled={unreadInList === 0}
+              className="inline-flex items-center gap-2 text-sm font-bold text-[#1b2b41] transition-colors hover:text-[#4d6359] disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {showAll ? 'Daha Az Göster' : 'Tüm Bildirimleri Gör'}
-              <ExternalLink className="h-4 w-4" />
+              Tümünü Okundu Yap
             </button>
           </div>
         </div>
