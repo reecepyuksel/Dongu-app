@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Shirt, BookOpen, Cpu, Home as HomeIcon, Bike, Baby, Dumbbell, Music, Utensils } from 'lucide-react';
+import {
+  Package,
+  Shirt,
+  BookOpen,
+  Cpu,
+  Home as HomeIcon,
+  Bike,
+  Baby,
+  Dumbbell,
+  Music,
+  Utensils,
+} from 'lucide-react';
 
 import SkeletonCard from '../components/SkeletonCard';
 import FilterPanel from '../components/FilterPanel';
@@ -162,7 +173,8 @@ const Home = () => {
     }
   };
 
-  const activeFilterCount = activeCategories.length + activeCities.length + activeDistricts.length;
+  const activeFilterCount =
+    activeCategories.length + activeCities.length + activeDistricts.length;
 
   const handleApplyFilters = ({ categories, cities, districts }) => {
     setActiveCategories(categories);
@@ -176,31 +188,38 @@ const Home = () => {
     // Search
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      copy = copy.filter((item) =>
-        (item.title && item.title.toLowerCase().includes(q)) ||
-        (item.description && item.description.toLowerCase().includes(q)) ||
-        (item.city && item.city.toLowerCase().includes(q))
+      copy = copy.filter(
+        (item) =>
+          (item.title && item.title.toLowerCase().includes(q)) ||
+          (item.description && item.description.toLowerCase().includes(q)) ||
+          (item.city && item.city.toLowerCase().includes(q)),
       );
     }
 
     // Category filter
     if (activeCategories.length > 0) {
-      copy = copy.filter((item) =>
-        item.category && activeCategories.includes(item.category)
+      copy = copy.filter(
+        (item) => item.category && activeCategories.includes(item.category),
       );
     }
 
     // City filter
     if (activeCities.length > 0) {
-      copy = copy.filter((item) =>
-        item.city && activeCities.some(c => item.city.toLowerCase() === c.toLowerCase())
+      copy = copy.filter(
+        (item) =>
+          item.city &&
+          activeCities.some((c) => item.city.toLowerCase() === c.toLowerCase()),
       );
     }
 
     // District filter
     if (activeDistricts.length > 0) {
-      copy = copy.filter((item) =>
-        item.district && activeDistricts.some(d => item.district.toLowerCase() === d.toLowerCase())
+      copy = copy.filter(
+        (item) =>
+          item.district &&
+          activeDistricts.some(
+            (d) => item.district.toLowerCase() === d.toLowerCase(),
+          ),
       );
     }
 
@@ -219,7 +238,14 @@ const Home = () => {
       const dateB = new Date(b.createdAt || b.drawDate || 0).getTime();
       return dateB - dateA;
     });
-  }, [items, sortBy, searchQuery, activeCategories, activeCities, activeDistricts]);
+  }, [
+    items,
+    sortBy,
+    searchQuery,
+    activeCategories,
+    activeCities,
+    activeDistricts,
+  ]);
 
   const handleItemClick = () => {
     sessionStorage.setItem('home_scroll_pos', window.scrollY.toString());
@@ -231,7 +257,8 @@ const Home = () => {
         tag: 'VAR MI?',
         tagClass: 'bg-tertiary-container text-tertiary-fixed',
         actionLabel: 'Bende Var!',
-        actionClass: 'bg-surface-container-high text-primary hover:bg-surface-container-highest transition-colors',
+        actionClass:
+          'bg-surface-container-high text-primary hover:bg-surface-container-highest transition-colors',
         rightLabel: 'Aranıyor',
       };
     }
@@ -241,7 +268,8 @@ const Home = () => {
         tag: 'TAKASLIK',
         tagClass: 'bg-[#B2CABD] text-primary-container',
         actionLabel: 'Teklif Ver',
-        actionClass: 'bg-secondary-container text-on-secondary-container hover:bg-secondary-fixed transition-colors',
+        actionClass:
+          'bg-secondary-container text-on-secondary-container hover:bg-secondary-fixed transition-colors',
         rightLabel: 'Takas',
       };
     }
@@ -250,7 +278,8 @@ const Home = () => {
       tag: 'DÖNGÜDE',
       tagClass: 'bg-primary text-white',
       actionLabel: 'Döngüye Katıl',
-      actionClass: 'bg-primary-container text-white hover:opacity-90 transition-opacity',
+      actionClass:
+        'bg-primary-container text-white hover:opacity-90 transition-opacity',
       rightLabel: item.karmaPoint ? `${item.karmaPoint} Puan` : 'Döngüde',
     };
   };
@@ -270,10 +299,13 @@ const Home = () => {
             </div>
             <div className="relative z-10 max-w-2xl py-8 md:py-0">
               <h1 className="text-3xl md:text-5xl font-extrabold font-manrope leading-tight mb-4">
-                İyilik Dolaştır,<br />Dünyayı Değiştir
+                İyilik Dolaştır,
+                <br />
+                Dünyayı Değiştir
               </h1>
               <p className="text-base md:text-lg text-on-primary-container/80 font-body max-w-lg">
-                Topluluğuna katıl, kullanmadığın eşyaları paylaş ve döngüsel ekonominin bir parçası ol.
+                Topluluğuna katıl, kullanmadığın eşyaları paylaş ve döngüsel
+                ekonominin bir parçası ol.
               </p>
             </div>
           </div>
@@ -281,11 +313,12 @@ const Home = () => {
 
         <section className="max-w-[1440px] mx-auto px-4 md:px-8 mb-6 md:mb-10">
           <div className="flex flex-col gap-6">
-            
             {/* Upper Row: Search & Filter (Sorting moved inside Filter conceptually) */}
             <div className="flex flex-row items-center gap-2 md:gap-4 w-full">
               <div className="flex flex-1 items-center bg-surface-container-low px-4 py-3 border border-slate-200/50 rounded-2xl transition-colors focus-within:bg-white focus-within:shadow-sm">
-                <span className="material-symbols-outlined text-slate-500 mr-2 md:mr-3 text-[18px] md:text-[20px]">search</span>
+                <span className="material-symbols-outlined text-slate-500 mr-2 md:mr-3 text-[18px] md:text-[20px]">
+                  search
+                </span>
                 <input
                   className="bg-transparent border-none focus:ring-0 text-sm font-medium w-full outline-none text-slate-800 placeholder-slate-400"
                   placeholder="İhtiyacın olan eşyayı veya içeriği ara..."
@@ -294,7 +327,7 @@ const Home = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              
+
               <button
                 onClick={() => setIsFilterOpen(true)}
                 className={`relative flex items-center justify-center gap-2 border px-4 md:px-6 py-3 rounded-2xl text-sm font-bold transition-all shadow-sm shrink-0 ${
@@ -303,7 +336,9 @@ const Home = () => {
                     : 'bg-surface-container-low border-slate-200/50 text-primary hover:bg-[#B2CABD]/20'
                 }`}
               >
-                <span className="material-symbols-outlined text-[20px]">tune</span>
+                <span className="material-symbols-outlined text-[20px]">
+                  tune
+                </span>
                 <span className="hidden md:inline">Filtrele</span>
                 {activeFilterCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-primary text-[10px] font-extrabold border border-primary shadow-sm">
@@ -336,19 +371,18 @@ const Home = () => {
                 </div>
               </div>
             </div>
-            
           </div>
         </section>
 
-      <FilterPanel
-        isOpen={isFilterOpen}
-        onClose={() => setIsFilterOpen(false)}
-        onApply={handleApplyFilters}
-        categories={CATEGORIES}
-        initialCategories={activeCategories}
-        initialCities={activeCities}
-        initialDistricts={activeDistricts}
-      />
+        <FilterPanel
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          onApply={handleApplyFilters}
+          categories={CATEGORIES}
+          initialCategories={activeCategories}
+          initialCities={activeCities}
+          initialDistricts={activeDistricts}
+        />
 
         {loading ? (
           <section className="max-w-[1440px] mx-auto px-4 md:px-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6 mb-16">
@@ -372,13 +406,25 @@ const Home = () => {
                   key={item.id}
                   className="group bg-surface-container-lowest rounded-2xl overflow-hidden hover:shadow-[0px_12px_32px_rgba(25,28,30,0.06)] transition-all duration-300 transform hover:-translate-y-1 flex flex-col h-full"
                 >
-                  <div className="relative aspect-square md:h-64 overflow-hidden" onClick={handleItemClick}>
-                    <Link to={`/items/${item.id}`} className="block w-full h-full">
-                      <img
-                        alt={item.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        src={(item.images && item.images[0]) || item.imageUrl || 'https://via.placeholder.com/300'}
-                      />
+                  <div
+                    className="relative aspect-[4/3] overflow-hidden bg-surface-container p-3"
+                    onClick={handleItemClick}
+                  >
+                    <Link
+                      to={`/items/${item.id}`}
+                      className="block w-full h-full"
+                    >
+                      <div className="h-full w-full overflow-hidden rounded-[1rem] bg-white">
+                        <img
+                          alt={item.title}
+                          className="w-full h-full object-contain p-2 group-hover:scale-[1.02] transition-transform duration-500"
+                          src={
+                            (item.images && item.images[0]) ||
+                            item.imageUrl ||
+                            'https://via.placeholder.com/300'
+                          }
+                        />
+                      </div>
                     </Link>
                     <span
                       className={`absolute top-2 left-2 md:top-4 md:left-4 text-[8px] md:text-[10px] font-bold tracking-widest px-2 md:px-3 py-1 rounded-full ${resolveCardType(item).tagClass}`}
@@ -390,9 +436,13 @@ const Home = () => {
                       className="absolute top-2 right-2 md:top-4 md:right-4 h-7 w-7 md:h-9 md:w-9 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center transition-colors text-error hover:bg-white"
                     >
                       {favoriteIds.includes(item.id) ? (
-                        <span className="material-symbols-outlined text-[16px] md:text-[20px] fill-current">favorite</span>
+                        <span className="material-symbols-outlined text-[16px] md:text-[20px] fill-current">
+                          favorite
+                        </span>
                       ) : (
-                        <span className="material-symbols-outlined text-[16px] md:text-[20px]">favorite</span>
+                        <span className="material-symbols-outlined text-[16px] md:text-[20px]">
+                          favorite
+                        </span>
                       )}
                     </button>
                   </div>
@@ -406,7 +456,9 @@ const Home = () => {
                       </span>
                     </div>
                     <div className="flex items-center gap-1 md:gap-2 text-on-surface-variant text-[10px] md:text-xs font-medium mb-4">
-                      <span className="material-symbols-outlined text-[14px] md:text-sm">location_on</span>
+                      <span className="material-symbols-outlined text-[14px] md:text-sm">
+                        location_on
+                      </span>
                       <span className="truncate">
                         {item.district && item.city
                           ? `${item.district}, ${item.city}`
@@ -439,14 +491,17 @@ const Home = () => {
                   Bağışınla Birini Mutlu Etmeye Hazır mısın?
                 </h2>
                 <p className="text-sm md:text-lg text-on-secondary-container mb-8 md:mb-10 max-w-2xl mx-auto relative z-10 font-medium">
-                  Kullanmadığın her eşya, bir başkasının ihtiyacı olabilir. Bugün paylaşmaya başla, iyiliği birlikte büyütelim.
+                  Kullanmadığın her eşya, bir başkasının ihtiyacı olabilir.
+                  Bugün paylaşmaya başla, iyiliği birlikte büyütelim.
                 </p>
                 <div className="flex flex-col sm:flex-row justify-center gap-4 relative z-10">
                   <Link
                     to="/dashboard"
                     className="px-6 md:px-10 py-3 md:py-4 bg-gradient-to-r from-[#05162b] to-[#1b2b41] text-white rounded-full font-bold text-base md:text-lg flex items-center justify-center gap-2 hover:scale-105 transition-all"
                   >
-                    <span className="material-symbols-outlined">add_circle</span>
+                    <span className="material-symbols-outlined">
+                      add_circle
+                    </span>
                     Paylaşım Oluştur
                   </Link>
                   <Link

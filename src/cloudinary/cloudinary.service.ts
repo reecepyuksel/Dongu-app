@@ -6,6 +6,7 @@ import {
   v2 as cloudinary,
 } from 'cloudinary';
 import { Readable } from 'stream';
+import { ItemPhotoAsset } from '../items/entities/item.entity';
 
 @Injectable()
 export class CloudinaryService {
@@ -92,6 +93,36 @@ export class CloudinaryService {
       stream.push(null);
       stream.pipe(upload);
     });
+  }
+
+  toPhotoAsset(
+    uploadResult: UploadApiResponse | UploadApiErrorResponse | undefined,
+  ): ItemPhotoAsset | null {
+    if (
+      !uploadResult ||
+      !('secure_url' in uploadResult) ||
+      !uploadResult.secure_url
+    ) {
+      return null;
+    }
+
+    const width =
+      typeof uploadResult.width === 'number' && uploadResult.width > 0
+        ? uploadResult.width
+        : null;
+    const height =
+      typeof uploadResult.height === 'number' && uploadResult.height > 0
+        ? uploadResult.height
+        : null;
+    const photoAspectRatio =
+      width && height ? Number((width / height).toFixed(4)) : null;
+
+    return {
+      url: uploadResult.secure_url,
+      width,
+      height,
+      photoAspectRatio,
+    };
   }
 
   async deleteImage(publicId: string): Promise<any> {

@@ -44,22 +44,26 @@ export class ItemsController {
     @Request() req,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    let imageUrls: string[] = [];
+    let photoGallery = [];
 
     if (files && files.length > 0) {
       const uploadResults = await Promise.all(
         files.map((file) => this.cloudinaryService.uploadImage(file)),
       );
 
-      imageUrls = uploadResults
-        .map((result) => result?.secure_url)
-        .filter((url): url is string => Boolean(url));
+      photoGallery = uploadResults
+        .map((result) => this.cloudinaryService.toPhotoAsset(result))
+        .filter((photo): photo is NonNullable<typeof photo> => Boolean(photo));
     } else {
       // Also accept single 'image' fallback or let service handle it via 'images'
       // We just pass empty array if none uploaded
     }
 
-    return this.itemsService.create(createItemDto, req.user.userId, imageUrls);
+    return this.itemsService.create(
+      createItemDto,
+      req.user.userId,
+      photoGallery,
+    );
   }
 
   @UseGuards(OptionalJwtAuthGuard)

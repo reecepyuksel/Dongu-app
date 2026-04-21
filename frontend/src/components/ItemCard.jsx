@@ -71,27 +71,29 @@ export const ItemCard = ({
       whileHover={{ y: -4, scale: 1.01 }}
       className="group flex h-full flex-col overflow-hidden rounded-[1.25rem] bg-white shadow-[0_12px_32px_rgba(25,28,30,0.05)] transition-all"
     >
-      <div className="relative aspect-square overflow-hidden bg-[#f2f4f6]">
+      <div className="relative aspect-[4/3] overflow-hidden bg-[#eef1f3] p-3">
         {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 animate-pulse bg-[#e6e8ea]" />
+          <div className="absolute inset-3 animate-pulse rounded-[1rem] bg-[#e6e8ea]" />
         )}
 
         {imageError || !imageUrl ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-[#75777d]">
+          <div className="absolute inset-3 flex flex-col items-center justify-center rounded-[1rem] bg-white text-[#75777d]">
             <ImageOff className="h-10 w-10" />
             <span className="mt-1 text-xs font-semibold">Görsel Yok</span>
           </div>
         ) : (
-          <img
-            src={imageUrl}
-            alt={title}
-            loading="lazy"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
-            className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
-          />
+          <div className="h-full w-full overflow-hidden rounded-[1rem] bg-white">
+            <img
+              src={imageUrl}
+              alt={title}
+              loading="lazy"
+              onLoad={() => setImageLoaded(true)}
+              onError={() => setImageError(true)}
+              className={`h-full w-full object-contain p-2 transition duration-500 group-hover:scale-[1.02] ${
+                imageLoaded ? 'opacity-100' : 'opacity-0'
+              }`}
+            />
+          </div>
         )}
 
         <div className="pointer-events-none absolute left-3 top-3">

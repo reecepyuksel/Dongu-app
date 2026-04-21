@@ -41,6 +41,13 @@ export enum ItemPostType {
   REQUESTING = 'REQUESTING',
 }
 
+export type ItemPhotoAsset = {
+  url: string;
+  width: number | null;
+  height: number | null;
+  photoAspectRatio: number | null;
+};
+
 @Entity()
 export class Item {
   @PrimaryGeneratedColumn('uuid')
@@ -68,6 +75,9 @@ export class Item {
 
   @Column('text', { array: true, default: [] })
   images: string[];
+
+  @Column({ type: 'jsonb', default: () => "'[]'::jsonb" })
+  photoGallery: ItemPhotoAsset[];
 
   @Index()
   @Column({ nullable: true }) // Kategori ekledik, eski veriler için nullable

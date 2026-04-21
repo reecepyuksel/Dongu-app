@@ -12,13 +12,13 @@ import {
   DeliveryStatus,
   ShareType,
   ItemPostType,
+  ItemPhotoAsset,
 } from './entities/item.entity';
 import { CreateItemDto } from './dto/create-item.dto';
 import { FindItemsQueryDto, PaginatedResult } from './dto/find-items-query.dto';
 import { User } from '../users/entities/user.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/entities/notification.entity';
-import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Message } from '../messages/entities/message.entity';
 import { Community } from '../communities/entities/community.entity';
 import { CommunityMember } from '../communities/entities/community-member.entity';
@@ -57,10 +57,60 @@ export class ItemsService {
     };
   }
 
+  private normalizePhotoGallery(item: Item): ItemPhotoAsset[] {
+    const rawGallery = Array.isArray(item.photoGallery)
+      ? item.photoGallery
+      : [];
+
+    if (rawGallery.length > 0) {
+      return rawGallery
+        .filter(
+          (photo) => typeof photo?.url === 'string' && photo.url.length > 0,
+        )
+        .map((photo) => ({
+          url: photo.url,
+          width:
+            typeof photo.width === 'number' && photo.width > 0
+              ? photo.width
+              : null,
+          height:
+            typeof photo.height === 'number' && photo.height > 0
+              ? photo.height
+              : null,
+          photoAspectRatio:
+            typeof photo.photoAspectRatio === 'number' &&
+            photo.photoAspectRatio > 0
+              ? photo.photoAspectRatio
+              : null,
+        }));
+    }
+
+    const legacyUrls = Array.isArray(item.images)
+      ? item.images.filter((url): url is string => Boolean(url))
+      : [];
+    const fallbackUrls = legacyUrls.length
+      ? legacyUrls
+      : item.imageUrl
+        ? [item.imageUrl]
+        : [];
+
+    return fallbackUrls.map((url) => ({
+      url,
+      width: null,
+      height: null,
+      photoAspectRatio: null,
+    }));
+  }
+
   private sanitizePublicItem(item: Item) {
     const raw = item as any;
+    const photoGallery = this.normalizePhotoGallery(item);
+
     return {
       ...raw,
+      images: photoGallery.map((photo) => photo.url),
+      imageUrl: photoGallery[0]?.url || raw.imageUrl || null,
+      photoGallery,
       owner: this.sanitizePublicUser(raw.owner),
       winner: this.sanitizePublicUser(raw.winner),
       community: raw.community
@@ -78,7 +128,7 @@ export class ItemsService {
   async create(
     createItemDto: CreateItemDto,
     userId: string,
-    images: string[] = [],
+    photoGallery: ItemPhotoAsset[] = [],
   ): Promise<Item> {
     let community: Community | null = null;
 
@@ -132,6 +182,8 @@ export class ItemsService {
     const selectedDeliveryMethod =
       normalizedMethods.length > 0 ? normalizedMethods[0] : 'mutual_agreement';
 
+    const uploadedImageUrls = photoGallery.map((photo) => photo.url);
+
     const item = this.itemsRepository.create({
       title: createItemDto.title,
       description: createItemDto.description,
@@ -145,12 +197,13 @@ export class ItemsService {
       tradePreferences: createItemDto.tradePreferences,
       deliveryMethods: [selectedDeliveryMethod],
       imageUrl:
-        images.length > 0
-          ? images[0]
+        uploadedImageUrls.length > 0
+          ? uploadedImageUrls[0]
           : createItemDto.postType === ItemPostType.REQUESTING
             ? null
             : 'https://via.placeholder.com/600x400?text=Resim+Yok',
-      images: images,
+      images: uploadedImageUrls,
+      photoGallery,
       status: ItemStatus.AVAILABLE,
       owner: { id: userId } as User,
       community: community ?? undefined,

@@ -268,16 +268,30 @@ const ItemDetail = () => {
   const isOwner = user?.id === item.owner?.id;
   const isWinner = user?.id === item.winner?.id;
   const canChat = isAuthenticated && !isOwner;
-  const itemImages =
-    item.images && item.images.length > 0
-      ? item.images
-      : [
-          item.postType === 'REQUESTING'
-            ? 'https://placehold.co/800x600/EFF6FF/2563EB?text=📸+Görsel+Bulunmuyor\nBu+ilan+bir+ihtiyaç+talebiveya+aranıyor+ilanıdır.&font=Outfit'
-            : item.imageUrl ||
-              'https://via.placeholder.com/800x600?text=Gorsel+Yok',
-        ];
-  const activeImage = itemImages[currentImageIndex] || itemImages[0];
+  const fallbackPhotoUrl =
+    item.postType === 'REQUESTING'
+      ? 'https://placehold.co/800x600/EFF6FF/2563EB?text=📸+Görsel+Bulunmuyor\nBu+ilan+bir+ihtiyaç+talebiveya+aranıyor+ilanıdır.&font=Outfit'
+      : item.imageUrl || 'https://via.placeholder.com/800x600?text=Gorsel+Yok';
+  const itemPhotos =
+    Array.isArray(item.photoGallery) && item.photoGallery.length > 0
+      ? item.photoGallery
+          .filter((photo) => typeof photo?.url === 'string' && photo.url)
+          .map((photo) => ({
+            url: photo.url,
+            width: photo.width ?? null,
+            height: photo.height ?? null,
+            photoAspectRatio: photo.photoAspectRatio ?? null,
+          }))
+      : (Array.isArray(item.images) && item.images.length > 0
+          ? item.images
+          : [fallbackPhotoUrl]
+        ).map((url) => ({
+          url,
+          width: null,
+          height: null,
+          photoAspectRatio: null,
+        }));
+  const itemImages = itemPhotos.map((photo) => photo.url);
   const tradeOfferCount = publicOffers.length;
   const tradeOfferLabel = `🔥 ${tradeOfferCount} kişi takas teklifi verdi`;
 
@@ -303,7 +317,7 @@ const ItemDetail = () => {
 
   return (
     <>
-      <div className="pt-24 pb-16 px-6 max-w-7xl mx-auto min-h-screen">
+      <div className="pt-24 pb-16 px-6 max-w-6xl mx-auto min-h-screen">
         {isOwner && (
           <div className="mb-6 flex items-center justify-between rounded-2xl border border-[#ffd7d3] bg-[#fff1f0] px-5 py-4">
             <div>
@@ -331,7 +345,7 @@ const ItemDetail = () => {
             ownerName={ownerName}
             ownerInitial={ownerInitial}
             canChat={canChat}
-            itemImages={itemImages}
+            itemPhotos={itemPhotos}
             currentImageIndex={currentImageIndex}
             setCurrentImageIndex={setCurrentImageIndex}
             setTradeModalOpen={setTradeModalOpen}
@@ -345,6 +359,7 @@ const ItemDetail = () => {
             item={item}
             ownerName={ownerName}
             ownerInitial={ownerInitial}
+            itemPhotos={itemPhotos}
             handleBendeVarClick={handleBendeVarClick}
             joining={joining}
             isOwner={isOwner}
@@ -360,7 +375,7 @@ const ItemDetail = () => {
             isOwner={isOwner}
             isWinner={isWinner}
             canChat={canChat}
-            itemImages={itemImages}
+            itemPhotos={itemPhotos}
             currentImageIndex={currentImageIndex}
             setCurrentImageIndex={setCurrentImageIndex}
             setIsLightboxOpen={setIsLightboxOpen}
