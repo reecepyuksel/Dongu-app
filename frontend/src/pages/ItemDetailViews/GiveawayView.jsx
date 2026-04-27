@@ -81,12 +81,12 @@ const GiveawayView = ({
                     </span>
                   </button>
                 </div>
+                <div className="absolute right-4 top-4 rounded-full bg-secondary-container/90 px-3 py-1.5 text-xs font-semibold text-on-secondary-container shadow-sm backdrop-blur-md">
+                  İkinci Şans
+                </div>
               </>
-
-              <div className="absolute right-4 top-4 rounded-full bg-secondary-container/90 px-3 py-1.5 text-xs font-semibold text-on-secondary-container shadow-sm backdrop-blur-md">
-                İkinci Şans
-              </div>
             )}
+          </ItemPhotoStage>
           <div className="grid grid-cols-4 gap-3">
             {itemPhotos.map((photo, idx) => (
                 <button

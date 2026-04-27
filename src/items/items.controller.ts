@@ -14,6 +14,7 @@ import {
   BadRequestException,
   Query,
 } from '@nestjs/common';
+import { ItemPhotoAsset } from './entities/item.entity';
 import { ItemsService } from './items.service';
 import { CreateItemDto } from './dto/create-item.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -44,7 +45,7 @@ export class ItemsController {
     @Request() req,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    let photoGallery = [];
+    let photoGallery: ItemPhotoAsset[] = [];
 
     if (files && files.length > 0) {
       const uploadResults = await Promise.all(
